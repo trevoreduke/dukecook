@@ -1,10 +1,38 @@
 'use client';
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getRecipe, deleteRecipe, createRating } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
+
+// Build schema.org Recipe JSON-LD for Instacart widget + SEO
+function buildRecipeSchema(recipe: any): object {
+  const schema: any = {
+    '@context': 'https://schema.org',
+    '@type': 'Recipe',
+    name: recipe.title,
+    recipeIngredient: recipe.ingredients?.map((ing: any) => ing.raw_text) || [],
+  };
+  if (recipe.description) schema.description = recipe.description;
+  if (recipe.image_path || recipe.image_url) {
+    schema.image = recipe.image_path
+      ? `${window.location.origin}${recipe.image_path}`
+      : recipe.image_url;
+  }
+  if (recipe.servings) schema.recipeYield = `${recipe.servings} servings`;
+  if (recipe.prep_time_min) schema.prepTime = `PT${recipe.prep_time_min}M`;
+  if (recipe.cook_time_min) schema.cookTime = `PT${recipe.cook_time_min}M`;
+  if (recipe.total_time_min) schema.totalTime = `PT${recipe.total_time_min}M`;
+  if (recipe.cuisine) schema.recipeCuseCategory = recipe.cuisine;
+  if (recipe.steps?.length) {
+    schema.recipeInstructions = recipe.steps.map((s: any) => ({
+      '@type': 'HowToStep',
+      text: s.instruction,
+    }));
+  }
+  return schema;
+}
 
 export default function RecipeDetailPage() {
   const params = useParams();
@@ -18,12 +46,27 @@ export default function RecipeDetailPage() {
   const [ratingNotes, setRatingNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const instacartLoaded = useRef(false);
 
   useEffect(() => {
     if (params.id) {
       getRecipe(Number(params.id)).then(setRecipe).catch(() => null).finally(() => setLoading(false));
     }
   }, [params.id]);
+
+  // Load Instacart widget script once recipe is loaded
+  useEffect(() => {
+    if (!recipe || instacartLoaded.current) return;
+    instacartLoaded.current = true;
+    const existing = document.getElementById('instacart-widget-script');
+    if (!existing) {
+      const script = document.createElement('script');
+      script.id = 'instacart-widget-script';
+      script.src = 'https://widgets.instacart.com/widget-bundle-v2.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, [recipe]);
 
   const handleDelete = async () => {
     if (!confirm('Delete this recipe?')) return;
@@ -52,11 +95,27 @@ export default function RecipeDetailPage() {
     }
   };
 
+  // Build Instacart deep link as fallback (in case widget doesn't load)
+  const buildInstacartLink = () => {
+    if (!recipe?.ingredients?.length) return '';
+    const ingredients = recipe.ingredients
+      .map((ing: any) => ing.ingredient_name || ing.raw_text)
+      .filter(Boolean)
+      .join(', ');
+    return `https://www.instacart.com/store/search/${encodeURIComponent(ingredients)}`;
+  };
+
   if (loading) return <div className="text-center py-12 text-gray-400">Loading...</div>;
   if (!recipe) return <div className="text-center py-12 text-gray-400">Recipe not found</div>;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
+      {/* Recipe JSON-LD for Instacart widget + SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildRecipeSchema(recipe)) }}
+      />
+
       {/* Header */}
       <div className="card overflow-hidden">
         {(recipe.image_url || recipe.image_path) && (
@@ -117,6 +176,63 @@ export default function RecipeDetailPage() {
         )}
         <button onClick={handleDelete} className="btn-danger">🗑</button>
       </div>
+
+      {/* 🛒 Shop Ingredients — Instacart Widget + Fallback Links */}
+      {recipe.ingredients?.length > 0 && (
+        <div className="card p-5 bg-green-50 border-green-200">
+          <h3 className="font-semibold text-green-800 mb-3">🛒 Shop Ingredients</h3>
+
+          {/* Instacart Widget (auto-reads JSON-LD schema from page) */}
+          <div className="mb-3">
+            <div id="shop-with-instacart-v1" data-affiliate_id="" data-affiliate_platform=""></div>
+          </div>
+
+          {/* Direct store links as alternatives / fallbacks */}
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={buildInstacartLink()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              🥕 Shop on Instacart
+            </a>
+            <a
+              href={`https://www.kroger.com/search?query=${encodeURIComponent(
+                recipe.ingredients.map((i: any) => i.ingredient_name || '').filter(Boolean).slice(0, 5).join(' ')
+              )}&searchType=default_search`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+            >
+              🏪 Kroger
+            </a>
+            <a
+              href={`https://www.meijer.com/shopping/search.html?text=${encodeURIComponent(
+                recipe.ingredients.map((i: any) => i.ingredient_name || '').filter(Boolean).slice(0, 5).join(' ')
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+            >
+              🛒 Meijer
+            </a>
+            <a
+              href={`https://www.walmart.com/search?q=${encodeURIComponent(
+                recipe.ingredients.map((i: any) => i.ingredient_name || '').filter(Boolean).slice(0, 5).join(' ')
+              )}&cat_id=976759`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium"
+            >
+              🏬 Walmart
+            </a>
+          </div>
+          <p className="text-xs text-green-600 mt-2">
+            Opens your chosen store with recipe ingredients ready to add to cart.
+          </p>
+        </div>
+      )}
 
       {/* Original Recipe View */}
       {showOriginal && (
