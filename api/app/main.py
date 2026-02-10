@@ -1,4 +1,4 @@
-"""DukeCook API — Recipe & Meal Planning for Trevor & Michelle."""
+"""DukeCook API — Recipe & Meal Planning for Trevor & Emily."""
 
 import logging
 from contextlib import asynccontextmanager
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="DukeCook",
-    description="Recipe & Meal Planning for Trevor & Michelle",
+    description="Recipe & Meal Planning for Trevor & Emily",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -63,7 +63,7 @@ image_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/images", StaticFiles(directory=str(image_dir)), name="images")
 
 # Register routers
-from app.routers import recipes, import_recipe, planner, rules, swipe, ratings, cookalong, shopping, users, taste
+from app.routers import recipes, import_recipe, planner, rules, swipe, ratings, cookalong, shopping, users, taste, homeassistant
 
 app.include_router(users.router)
 app.include_router(recipes.router)
@@ -75,6 +75,7 @@ app.include_router(ratings.router)
 app.include_router(cookalong.router)
 app.include_router(shopping.router)
 app.include_router(taste.router)
+app.include_router(homeassistant.router)
 
 
 @app.get("/api/health")
@@ -97,9 +98,9 @@ async def seed_defaults():
         existing = result.scalars().all()
 
         if not existing:
-            logger.info("Seeding default users: Trevor & Michelle")
+            logger.info("Seeding default users: Trevor & Emily")
             db.add(User(name="Trevor", avatar_emoji="👨‍🍳"))
-            db.add(User(name="Michelle", avatar_emoji="👩‍🍳"))
+            db.add(User(name="Emily", avatar_emoji="👩‍🍳"))
             await db.commit()
 
         # Create sample dietary rules if none exist

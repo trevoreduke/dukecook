@@ -66,7 +66,7 @@ async def get_insights(user_id: int, db: AsyncSession = Depends(get_db)):
 async def compare_profiles(db: AsyncSession = Depends(get_db)):
     """Compare taste profiles between both users.
 
-    Shows where Trevor and Michelle agree and disagree.
+    Shows where Trevor and Emily agree and disagree.
     """
     logger.info("Comparing taste profiles")
 

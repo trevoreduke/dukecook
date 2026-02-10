@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { createSwipeSession, getNextCard, submitSwipe, getSwipeSession, getMatches, getActiveSessions } from '@/lib/api';
-import { UserContext } from '@/app/layout';
+import { UserContext } from '@/lib/user-context';
 import Link from 'next/link';
 
 export default function SwipePage() {

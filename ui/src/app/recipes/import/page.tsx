@@ -3,7 +3,7 @@
 import { useState, useContext } from 'react';
 import { useRouter } from 'next/navigation';
 import { importRecipe, bulkImport } from '@/lib/api';
-import { UserContext } from '@/app/layout';
+import { UserContext } from '@/lib/user-context';
 
 export default function ImportPage() {
   const router = useRouter();

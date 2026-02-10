@@ -1,25 +1,10 @@
 'use client';
 
 import './globals.css';
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getUsers } from '@/lib/api';
-
-interface UserContextType {
-  currentUser: any | null;
-  setCurrentUser: (user: any) => void;
-  users: any[];
-}
-
-export const UserContext = createContext<UserContextType>({
-  currentUser: null,
-  setCurrentUser: () => {},
-  users: [],
-});
-
-export function useUser() {
-  return useContext(UserContext);
-}
+import { UserContext } from '@/lib/user-context';
 
 const NAV_ITEMS = [
   { href: '/', label: '🏠', title: 'Home' },
@@ -29,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/swipe', label: '🔥', title: 'Swipe' },
   { href: '/shopping', label: '🛒', title: 'Shopping' },
   { href: '/settings', label: '⚙️', title: 'Settings' },
+  { href: '/guide', label: '❓', title: 'Guide' },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

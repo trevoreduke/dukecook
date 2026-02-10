@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCookAlong, getScaledIngredients, createRating } from '@/lib/api';
-import { UserContext } from '@/app/layout';
+import { UserContext } from '@/lib/user-context';
 
 interface Timer {
   id: string;

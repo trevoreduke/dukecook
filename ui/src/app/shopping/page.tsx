@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useContext } from 'react';
 import { getCurrentShoppingList, generateShoppingList, updateShoppingItem } from '@/lib/api';
-import { UserContext } from '@/app/layout';
+import { UserContext } from '@/lib/user-context';
 import { format, startOfWeek } from 'date-fns';
 
 export default function ShoppingPage() {

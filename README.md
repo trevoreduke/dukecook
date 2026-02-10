@@ -1,6 +1,6 @@
 # DukeCook 🍳
 
-Recipe & Meal Planning for Trevor & Michelle.
+Recipe & Meal Planning for Trevor & Emily.
 
 ## Quick Start
 
@@ -75,7 +75,7 @@ Then set up Cloudflare tunnel for `cook.trevorduke.com`.
 ## Default Data
 
 On first start, the app seeds:
-- **Users**: Trevor 👨‍🍳, Michelle 👩‍🍳
+- **Users**: Trevor 👨‍🍳, Emily 👩‍🍳
 - **Rules**: Chicken max 2x/week, Salmon 1x/2 weeks, Beef max 2x/week, No repeats within 14 days, 2 veggie nights/week
 - **Pantry staples**: Salt, pepper, olive oil, garlic, onion, etc.
 

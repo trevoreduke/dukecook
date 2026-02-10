@@ -1,6 +1,6 @@
 # DukeCook — Recipe & Meal Planning App
 
-A personal cooking app for Trevor and Michelle. Import recipes from the web (like newhome does for houses), plan meals around your real calendar, and enforce dietary rules automatically.
+A personal cooking app for Trevor and Emily. Import recipes from the web (like newhome does for houses), plan meals around your real calendar, and enforce dietary rules automatically.
 
 ---
 
@@ -36,7 +36,7 @@ Inspired by how newhome.trevorduke.com imports houses: paste a URL, AI does the 
 
 - **Tags & categories**: Cuisine (Italian, Mexican, Asian), meal type (breakfast, lunch, dinner, snack), protein (chicken, beef, salmon, vegetarian), effort level (weeknight-easy, weekend-project)
 - **Ratings**: Both of you rate 1-5 stars independently, see each other's ratings
-- **Notes**: Personal notes on a recipe ("Michelle likes extra garlic", "halve the salt")
+- **Notes**: Personal notes on a recipe ("Emily likes extra garlic", "halve the salt")
 - **Scaling**: Adjust servings, ingredients recalculate automatically
 - **Cook mode**: Large text, screen stays on, step-by-step with swipe navigation
 - **Seasonal tags**: Auto-tag based on ingredients (summer = grilling, winter = soups)
@@ -108,7 +108,7 @@ Track what you actually cook (vs. just save) and what you rate highly. Over time
 
 Group recipes into themed collections:
 - "Date Night Dinners"
-- "Michelle's Favorites"
+- "Emily's Favorites"
 - "Under 30 Minutes"
 - "Impress the Guests"
 - "Meal Prep Sundays"
@@ -157,7 +157,7 @@ Step-by-step cooking assistant:
 
 - Share individual recipes or meal plans with a link
 - Import from friends' DukeCook (if they have one)
-- "Michelle's mom's lasagna" — attribute recipes to people
+- "Emily's mom's lasagna" — attribute recipes to people
 - Recipe request: "Mom, can you add your meatloaf recipe?"
 
 ### 3.10 🏪 Multi-Store Price Optimization (Ambitious)
@@ -228,7 +228,7 @@ pantry_staples
   id, ingredient_id, always_have (boolean)
 
 users
-  id, name (Trevor/Michelle)
+  id, name (Trevor/Emily)
 ```
 
 ### Recipe Import Pipeline
@@ -264,7 +264,7 @@ Get these working first:
 7. ✅ AI meal suggestions respecting rules
 8. ✅ Auto-generated shopping list from plan
 9. ✅ PWA (installable on phone)
-10. ✅ Two-user system (Trevor & Michelle)
+10. ✅ Two-user system (Trevor & Emily)
 
 ### Phase 2 (Fast Follow)
 - Cook-along mode with timers
@@ -310,5 +310,5 @@ Get these working first:
 - [ ] Google Calendar — use service account or OAuth per user?
 - [ ] Recipe schema: use Mealie's recipe-scraper library? (Python, well-maintained)
 - [ ] Nutritional data: worth including? (adds complexity but useful for health tracking)
-- [ ] Multiple households: just Trevor+Michelle, or design for sharing with family?
+- [ ] Multiple households: just Trevor+Emily, or design for sharing with family?
 - [ ] Name: DukeCook? DukeEats? Something else?

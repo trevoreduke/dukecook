@@ -4,7 +4,7 @@ import { useState, useEffect, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getRecipe, deleteRecipe, createRating } from '@/lib/api';
-import { UserContext } from '@/app/layout';
+import { UserContext } from '@/lib/user-context';
 
 export default function RecipeDetailPage() {
   const params = useParams();
@@ -132,7 +132,7 @@ export default function RecipeDetailPage() {
 
           <textarea
             className="input mb-3"
-            placeholder="Notes (optional) — e.g., 'Added extra garlic, Michelle loved it'"
+            placeholder="Notes (optional) — e.g., 'Added extra garlic, Emily loved it'"
             value={ratingNotes}
             onChange={(e) => setRatingNotes(e.target.value)}
             rows={2}

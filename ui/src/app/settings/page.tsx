@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useContext } from 'react';
 import { getRules, createRule, updateRule, deleteRule, getPantryStaples, getTasteProfile, compareTastes, getTasteInsights } from '@/lib/api';
-import { UserContext } from '@/app/layout';
+import { UserContext } from '@/lib/user-context';
 
 export default function SettingsPage() {
   const { currentUser, users } = useContext(UserContext);

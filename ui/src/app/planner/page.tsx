@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useContext } from 'react';
 import { getWeekPlan, getRecipes, addToPlan, deletePlan, updatePlan, suggestMeals, addCalendarEvent, deleteCalendarEvent } from '@/lib/api';
-import { UserContext } from '@/app/layout';
+import { UserContext } from '@/lib/user-context';
 import Link from 'next/link';
 import { format, addDays, subDays, startOfWeek } from 'date-fns';
 
