@@ -129,6 +129,8 @@ class RecipeSummary(BaseModel):
 class RecipeDetail(RecipeSummary):
     source_url: str = ""
     servings: int = 4
+    notes: str = ""
+    original_text: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     ingredients: list[IngredientOut] = []

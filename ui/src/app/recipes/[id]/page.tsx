@@ -17,6 +17,7 @@ export default function RecipeDetailPage() {
   const [wouldMakeAgain, setWouldMakeAgain] = useState(true);
   const [ratingNotes, setRatingNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -106,8 +107,51 @@ export default function RecipeDetailPage() {
         <button onClick={() => setShowRating(!showRating)} className="btn-secondary">
           ⭐ Rate
         </button>
+        {(recipe.original_text || recipe.source_url) && (
+          <button
+            onClick={() => setShowOriginal(!showOriginal)}
+            className={`btn-secondary ${showOriginal ? 'ring-2 ring-brand-300' : ''}`}
+          >
+            {showOriginal ? '📋 Formatted' : '📄 Original'}
+          </button>
+        )}
         <button onClick={handleDelete} className="btn-danger">🗑</button>
       </div>
+
+      {/* Original Recipe View */}
+      {showOriginal && (
+        <div className="card p-5 bg-amber-50 border-amber-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-amber-800">📄 Original Recipe</h3>
+            {recipe.source_url && !recipe.source_url.startsWith('photo:') && (
+              <a href={recipe.source_url} target="_blank" rel="noopener noreferrer"
+                className="text-sm text-brand-500 hover:underline">
+                Open source ↗
+              </a>
+            )}
+          </div>
+          {recipe.source_url?.startsWith('photo:') && recipe.image_path && (
+            <div className="mb-4">
+              <p className="text-sm text-amber-700 mb-2">📸 Imported from this photo:</p>
+              <img src={recipe.image_path} alt="Original recipe photo" className="rounded-lg max-h-96 w-full object-contain bg-white" />
+            </div>
+          )}
+          {recipe.original_text ? (
+            <pre className="whitespace-pre-wrap text-sm text-amber-900 font-mono leading-relaxed bg-white/50 rounded-lg p-4 max-h-[600px] overflow-y-auto">
+              {recipe.original_text}
+            </pre>
+          ) : recipe.source_url && !recipe.source_url.startsWith('photo:') ? (
+            <p className="text-sm text-amber-700">
+              Full original at:{' '}
+              <a href={recipe.source_url} target="_blank" rel="noopener noreferrer" className="underline">
+                {recipe.source_url}
+              </a>
+            </p>
+          ) : (
+            <p className="text-sm text-amber-700">No original text stored for this recipe.</p>
+          )}
+        </div>
+      )}
 
       {/* Rating Form */}
       {showRating && (
@@ -176,42 +220,54 @@ export default function RecipeDetailPage() {
       )}
 
       {/* Ingredients */}
-      <div className="card p-5">
-        <h3 className="font-semibold mb-3">Ingredients</h3>
-        <ul className="space-y-2">
-          {recipe.ingredients?.map((ing: any, i: number) => (
-            <li key={i} className="flex items-start gap-2">
-              <span className="text-brand-400 mt-1">•</span>
-              <span>{ing.raw_text}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {!showOriginal && (
+        <div className="card p-5">
+          <h3 className="font-semibold mb-3">Ingredients</h3>
+          <ul className="space-y-2">
+            {recipe.ingredients?.map((ing: any, i: number) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-brand-400 mt-1">•</span>
+                <span>{ing.raw_text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Steps */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold">Steps</h3>
-          <Link href={`/cook/${recipe.id}`} className="text-sm text-brand-500">Cook-along mode →</Link>
+      {!showOriginal && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Steps</h3>
+            <Link href={`/cook/${recipe.id}`} className="text-sm text-brand-500">Cook-along mode →</Link>
+          </div>
+          <ol className="space-y-4">
+            {recipe.steps?.map((step: any) => (
+              <li key={step.id} className="flex gap-3">
+                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-brand-500 text-white text-sm flex items-center justify-center font-medium">
+                  {step.step_number}
+                </span>
+                <div className="flex-1">
+                  <p>{step.instruction}</p>
+                  {step.duration_minutes && (
+                    <span className="inline-flex items-center gap-1 mt-1 text-sm text-brand-600 bg-brand-50 px-2 py-0.5 rounded">
+                      ⏱ {step.duration_minutes} min {step.timer_label && `— ${step.timer_label}`}
+                    </span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
-        <ol className="space-y-4">
-          {recipe.steps?.map((step: any) => (
-            <li key={step.id} className="flex gap-3">
-              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-brand-500 text-white text-sm flex items-center justify-center font-medium">
-                {step.step_number}
-              </span>
-              <div className="flex-1">
-                <p>{step.instruction}</p>
-                {step.duration_minutes && (
-                  <span className="inline-flex items-center gap-1 mt-1 text-sm text-brand-600 bg-brand-50 px-2 py-0.5 rounded">
-                    ⏱ {step.duration_minutes} min {step.timer_label && `— ${step.timer_label}`}
-                  </span>
-                )}
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
+      )}
+
+      {/* Notes / Tips */}
+      {recipe.notes && !showOriginal && (
+        <div className="card p-5 bg-blue-50 border-blue-100">
+          <h3 className="font-semibold text-blue-800 mb-2">💡 Tips & Notes</h3>
+          <div className="text-sm text-blue-900 whitespace-pre-wrap leading-relaxed">{recipe.notes}</div>
+        </div>
+      )}
     </div>
   );
 }

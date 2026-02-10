@@ -39,7 +39,7 @@ async def extract_recipe_from_html(html: str, url: str) -> Optional[dict]:
 
 {{
   "title": "Recipe title",
-  "description": "Brief description",
+  "description": "Full description of the dish — include what makes it special, flavor notes, etc.",
   "prep_time_min": 15,
   "cook_time_min": 30,
   "total_time_min": 45,
@@ -47,20 +47,26 @@ async def extract_recipe_from_html(html: str, url: str) -> Optional[dict]:
   "cuisine": "Italian",
   "difficulty": "easy|medium|hard",
   "image_url": "URL of the main recipe image",
+  "notes": "All tips, author notes, variations, make-ahead instructions, storage tips, serving suggestions — everything beyond the core recipe",
   "ingredients": [
     {{"raw_text": "2 cups all-purpose flour", "quantity": 2, "unit": "cups", "name": "all-purpose flour", "preparation": "", "group": ""}},
     {{"raw_text": "1 lb chicken breast, diced", "quantity": 1, "unit": "lb", "name": "chicken breast", "preparation": "diced", "group": ""}}
   ],
   "steps": [
     {{"instruction": "Preheat oven to 375°F.", "duration_minutes": null, "timer_label": ""}},
-    {{"instruction": "Sear chicken for 3 minutes per side.", "duration_minutes": 6, "timer_label": "Sear chicken"}}
+    {{"instruction": "In a large skillet, heat olive oil over medium-high heat. Sear chicken for 3 minutes per side until golden brown. Don't move the chicken while it sears — you want a good crust.", "duration_minutes": 6, "timer_label": "Sear chicken"}}
   ],
   "tags": ["italian", "chicken", "easy", "weeknight"]
 }}
 
-Rules:
-- Extract ALL ingredients and ALL steps
+CRITICAL RULES — READ CAREFULLY:
+- Extract EVERY ingredient exactly as written. Do NOT skip optional ingredients, garnishes, or "for serving" items.
+- Extract EVERY step with FULL DETAIL. Do NOT summarize, condense, or combine steps.
+- Keep the EXACT wording and details from the original recipe. Include temperatures, visual cues ("until golden brown"), texture descriptions ("until the dough is smooth and elastic"), and technique tips.
+- If a step contains multiple sentences, keep ALL of them. A step like "Season the chicken. Let it rest for 10 minutes. This allows the salt to penetrate the meat." should be kept in full.
+- Include ALL author tips, headnotes, variations, make-ahead notes, storage instructions, and serving suggestions in the "notes" field.
 - Parse quantities as numbers (1.5, 0.25, etc.)
+- Preserve ingredient groupings (e.g., "For the sauce", "For the crust") in the "group" field
 - If a step has a clear timer (e.g., "cook for 10 minutes"), set duration_minutes and timer_label
 - Tags should include: cuisine, primary protein, difficulty, and any other relevant categories
 - If info is missing, use null
@@ -74,7 +80,7 @@ HTML:
     try:
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            max_tokens=8192,
             messages=[{"role": "user", "content": prompt}],
         )
 
@@ -147,39 +153,45 @@ async def extract_recipe_from_image(image_data: bytes, media_type: str, filename
 
 {
   "title": "Recipe title",
-  "description": "Brief description of the dish",
+  "description": "Full description of the dish",
   "prep_time_min": 15,
   "cook_time_min": 30,
   "total_time_min": 45,
   "servings": 4,
   "cuisine": "Italian",
   "difficulty": "easy|medium|hard",
+  "notes": "All tips, author notes, variations, storage tips, serving suggestions — everything beyond the core recipe",
   "ingredients": [
     {"raw_text": "2 cups all-purpose flour", "quantity": 2, "unit": "cups", "name": "all-purpose flour", "preparation": "", "group": ""},
     {"raw_text": "1 lb chicken breast, diced", "quantity": 1, "unit": "lb", "name": "chicken breast", "preparation": "diced", "group": ""}
   ],
   "steps": [
     {"instruction": "Preheat oven to 375°F.", "duration_minutes": null, "timer_label": ""},
-    {"instruction": "Sear chicken for 3 minutes per side.", "duration_minutes": 6, "timer_label": "Sear chicken"}
+    {"instruction": "In a large skillet, heat olive oil over medium-high heat. Sear chicken for 3 minutes per side until golden brown. Don't move the chicken while it sears — you want a good crust.", "duration_minutes": 6, "timer_label": "Sear chicken"}
   ],
   "tags": ["italian", "chicken", "easy", "weeknight"]
 }
 
-Rules:
-- Extract ALL ingredients and ALL steps you can read
+CRITICAL RULES — READ CAREFULLY:
+- Transcribe EVERY ingredient EXACTLY as written. Do NOT skip optional ingredients, garnishes, or "for serving" items.
+- Transcribe EVERY step with FULL DETAIL. Do NOT summarize, condense, or combine steps. Keep the EXACT wording.
+- Include ALL temperatures, visual cues, texture descriptions, and technique tips from every step.
+- If a step has multiple sentences, keep ALL of them verbatim.
+- Include ALL tips, headnotes, variations, notes, and serving suggestions in the "notes" field.
 - Parse quantities as numbers (1.5, 0.25, etc.)
-- If a step has a clear timer (e.g., "cook for 10 minutes"), set duration_minutes and timer_label
-- Tags should include: cuisine, primary protein, difficulty, and any relevant categories
+- Preserve ingredient groupings in the "group" field
+- If a step has a timer, set duration_minutes and timer_label
 - For handwritten recipes, do your best to read the handwriting
 - If the image shows multiple recipes, extract only the main/first one
-- If something is unclear or illegible, make your best guess and note it
+- If something is unclear, make your best guess and note it in the "notes" field
 - If info is missing (no servings listed, etc.), use reasonable defaults
+- Tags should include: cuisine, primary protein, difficulty, and any relevant categories
 - Return ONLY the JSON, no other text"""
 
     try:
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            max_tokens=8192,
             messages=[{
                 "role": "user",
                 "content": [

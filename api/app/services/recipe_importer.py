@@ -227,6 +227,24 @@ async def save_recipe_data(
     if start_time is None:
         start_time = time.time()
 
+    # Build original_text from the full extraction for reference
+    original_parts = []
+    if recipe_data.get("title"):
+        original_parts.append(recipe_data["title"])
+    if recipe_data.get("description"):
+        original_parts.append(f"\n{recipe_data['description']}")
+    if recipe_data.get("ingredients"):
+        original_parts.append("\n\nIngredients:")
+        for ing in recipe_data["ingredients"]:
+            original_parts.append(f"  • {ing.get('raw_text', '')}")
+    if recipe_data.get("steps"):
+        original_parts.append("\n\nInstructions:")
+        for i, step in enumerate(recipe_data["steps"], 1):
+            original_parts.append(f"  {i}. {step.get('instruction', '')}")
+    if recipe_data.get("notes"):
+        original_parts.append(f"\n\nNotes:\n{recipe_data['notes']}")
+    original_text = "\n".join(original_parts)
+
     try:
         recipe = Recipe(
             title=recipe_data.get("title", "Untitled"),
@@ -239,6 +257,8 @@ async def save_recipe_data(
             servings=recipe_data.get("servings", 4),
             cuisine=recipe_data.get("cuisine", ""),
             difficulty=recipe_data.get("difficulty", "medium"),
+            notes=recipe_data.get("notes", ""),
+            original_text=original_text,
             created_by=user_id,
         )
         db.add(recipe)
@@ -396,5 +416,22 @@ async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[i
     if extraction_method == "schema":
         recipe_data["tags"] = await enrich_recipe_tags(recipe_data)
 
-    # 5. Save to database
+    # 5. For schema extraction, try to grab any notes/tips from the page
+    if extraction_method == "schema" and not recipe_data.get("notes"):
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            # Look for common notes/tips sections
+            notes_parts = []
+            for selector in ["[class*='note']", "[class*='tip']", "[class*='variation']",
+                             "[class*='make-ahead']", "[class*='storage']"]:
+                for el in soup.select(selector):
+                    text = el.get_text(strip=True)
+                    if text and len(text) > 20 and len(text) < 2000:
+                        notes_parts.append(text)
+            if notes_parts:
+                recipe_data["notes"] = "\n\n".join(notes_parts[:5])
+        except Exception:
+            pass
+
+    # 6. Save to database
     return await save_recipe_data(db, recipe_data, url, extraction_method, user_id, start_time)
