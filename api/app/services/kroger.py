@@ -57,7 +57,7 @@ class KrogerClient:
     def get_authorize_url(self, redirect_uri: str, state: str = "") -> str:
         """Build the Kroger OAuth authorize URL."""
         params = {
-            "scope": "cart.basic:write product.compact",
+            "scope": "cart.basic:write product.compact profile.compact",
             "response_type": "code",
             "client_id": self.client_id,
             "redirect_uri": redirect_uri,
@@ -142,9 +142,17 @@ class KrogerClient:
         p = products[0]
         item = p.get("items", [{}])[0] if p.get("items") else {}
         price = item.get("price", {})
+        upc = p["upc"]
+        desc = p.get("description", "")
+        # Build a Kroger product page URL (slug from description)
+        slug = desc.lower().replace("®", "").replace("™", "")
+        slug = "".join(c if c.isalnum() or c == " " else "" for c in slug)
+        slug = "-".join(slug.split())
+        product_url = f"https://www.kroger.com/p/{slug}/{upc}"
+
         return {
-            "upc": p["upc"],
-            "description": p.get("description", ""),
+            "upc": upc,
+            "description": desc,
             "brand": p.get("brand", ""),
             "size": item.get("size", ""),
             "price": price.get("promo") if price.get("promo", 0) > 0 else price.get("regular"),
@@ -153,6 +161,8 @@ class KrogerClient:
             "in_stock": item.get("fulfillment", {}).get("inStore", False),
             "aisle": _format_aisle(p.get("aisleLocations", [])),
             "image_url": _get_image_url(p),
+            "product_url": product_url,
+            "search_url": f"https://www.kroger.com/search?query={ingredient_name.replace(' ', '+')}&searchType=default_search",
         }
 
     async def match_ingredients(
@@ -171,11 +181,13 @@ class KrogerClient:
 
     # ── Cart Operations (requires user token) ──
 
-    async def add_to_cart(self, user_token: str, items: list[dict]) -> bool:
+    async def add_to_cart(self, user_token: str, items: list[dict]) -> dict:
         """Add items to user's Kroger cart.
 
         items: [{"upc": "0001111004965", "quantity": 1}, ...]
+        Returns dict with success status and raw response details.
         """
+        logger.info(f"Cart add: sending {len(items)} items, first 3: {items[:3]}")
         async with httpx.AsyncClient() as client:
             resp = await client.put(
                 f"{API_BASE}/cart/add",
@@ -186,11 +198,14 @@ class KrogerClient:
                     "Content-Type": "application/json",
                 },
             )
+            body = resp.text[:1000] if resp.text else "(empty)"
+            logger.info(f"Cart add response: status={resp.status_code} headers={dict(resp.headers)} body={body}")
+
             if resp.status_code in (200, 201, 204):
                 logger.info(f"Added {len(items)} items to Kroger cart")
-                return True
-            logger.error(f"Cart add failed: {resp.status_code} {resp.text}")
-            return False
+                return {"success": True, "status": resp.status_code, "body": body}
+            logger.error(f"Cart add failed: {resp.status_code} {body}")
+            return {"success": False, "status": resp.status_code, "body": body}
 
 
 # ── Helpers ──

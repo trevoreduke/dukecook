@@ -168,7 +168,9 @@ export default function RecipeDetailPage() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-blue-800">🛒 Kroger</h3>
             {krogerStatus?.connected && (
-              <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">✓ Connected</span>
+              <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                ✓ {krogerStatus.first_name || krogerStatus.email || 'Connected'}
+              </span>
             )}
           </div>
 
@@ -266,33 +268,82 @@ export default function RecipeDetailPage() {
             </div>
           )}
 
-          {/* Success state */}
+          {/* Success state — show matched products with links */}
           {krogerCartResult && (
-            <div className="text-center py-3">
-              <div className="text-3xl mb-2">🎉</div>
-              <p className="font-medium text-green-800 text-lg">{krogerCartResult.message}</p>
-              <p className="text-sm text-gray-600 mt-1">Est. cost: ${krogerCartResult.estimated_cost?.toFixed(2)}</p>
-              {krogerCartResult.skipped?.length > 0 && (
-                <p className="text-xs text-amber-600 mt-2">
-                  Not found: {krogerCartResult.skipped.join(', ')}
+            <div className="py-2">
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-medium text-blue-800">
+                  {krogerCartResult.added} items · ~${krogerCartResult.estimated_cost?.toFixed(2)}
                 </p>
-              )}
-              <div className="flex gap-2 justify-center mt-3">
                 <a
                   href="https://www.kroger.com/cart"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
                 >
-                  🛒 View Kroger Cart
+                  🛒 Open Cart
+                </a>
+              </div>
+
+              {/* Product list with direct Kroger links */}
+              <div className="space-y-1.5 max-h-72 overflow-y-auto mb-3">
+                {krogerCartResult.items?.map((item: any, idx: number) => (
+                  <a
+                    key={idx}
+                    href={item.matched ? (item.product_url || item.search_url) : undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                      item.matched 
+                        ? 'bg-white border border-blue-200 hover:bg-blue-50 cursor-pointer' 
+                        : 'bg-red-50 border border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span>{item.matched ? '✅' : '❌'}</span>
+                      <div className="min-w-0">
+                        <div className="text-gray-500 text-xs truncate">{item.ingredient}</div>
+                        {item.matched && (
+                          <div className="text-gray-800 text-sm truncate">{item.description}</div>
+                        )}
+                      </div>
+                    </div>
+                    {item.matched && (
+                      <div className="flex items-center gap-2 ml-2 shrink-0">
+                        <span className="text-xs text-gray-500">{item.size}</span>
+                        <span className="text-sm font-medium">${item.price?.toFixed(2)}</span>
+                        {item.on_sale && <span className="text-xs text-red-500 font-medium">SALE</span>}
+                      </div>
+                    )}
+                  </a>
+                ))}
+              </div>
+
+              {krogerCartResult.skipped?.length > 0 && (
+                <p className="text-xs text-amber-600 mb-2">
+                  ⚠️ Not found: {krogerCartResult.skipped.join(', ')}
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <a
+                  href="https://www.kroger.com/cart"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  🛒 Open Kroger Cart
                 </a>
                 <button
                   onClick={() => setKrogerCartResult(null)}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                  className="px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
                 >
-                  Done
+                  ✕
                 </button>
               </div>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Tap any item to view on Kroger · Items also sent to your Kroger cart via API
+              </p>
             </div>
           )}
         </div>

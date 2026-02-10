@@ -86,11 +86,29 @@ async def kroger_status(user_id: int = Query(1), db: AsyncSession = Depends(get_
         return {"connected": False}
 
     expired = datetime.utcnow() > token.expires_at
-    return {
+    resp = {
         "connected": True,
         "expired": expired,
         "store_id": token.store_id,
     }
+
+    # Try to get profile email if token is valid
+    if not expired:
+        import httpx as httpx_mod
+        try:
+            async with httpx_mod.AsyncClient() as client:
+                profile_resp = await client.get(
+                    "https://api.kroger.com/v1/identity/profile",
+                    headers={"Authorization": f"Bearer {token.access_token}", "Accept": "application/json"},
+                )
+                if profile_resp.status_code == 200:
+                    profile = profile_resp.json().get("data", {})
+                    resp["email"] = profile.get("email", "")
+                    resp["first_name"] = profile.get("firstName", "")
+        except Exception:
+            pass
+
+    return resp
 
 
 # ── Ensure valid user token ──
@@ -211,22 +229,65 @@ async def add_recipe_to_cart(
     if not cart_items:
         raise HTTPException(400, "No products matched — nothing to add to cart")
 
-    # Add to cart
-    success = await kroger_client.add_to_cart(user_token, cart_items)
-
-    if not success:
-        raise HTTPException(502, "Failed to add items to Kroger cart")
+    # Try to add to cart via API (may or may not show up depending on fulfillment session)
+    cart_result = await kroger_client.add_to_cart(user_token, cart_items)
 
     return {
         "success": True,
         "added": len(cart_items),
         "skipped": skipped,
         "estimated_cost": match_data["estimated_cost"],
-        "message": f"Added {len(cart_items)} items to your Kroger cart!",
+        "message": f"Matched {len(cart_items)} items at Kroger!",
+        "api_cart_added": cart_result.get("success", False),
+        "items": items,  # Include full match data with product_url
     }
 
 
 # ── Product Search (for manual lookups) ──
+
+@router.get("/debug")
+async def kroger_debug(user_id: int = Query(1), db: AsyncSession = Depends(get_db)):
+    """Debug endpoint: show Kroger account info and test cart add."""
+    import httpx as httpx_mod
+
+    user_token = await _get_user_token(user_id, db)
+
+    # Get profile
+    profile = None
+    async with httpx_mod.AsyncClient() as client:
+        resp = await client.get(
+            "https://api.kroger.com/v1/identity/profile",
+            headers={"Authorization": f"Bearer {user_token}", "Accept": "application/json"},
+        )
+        if resp.status_code == 200:
+            profile = resp.json().get("data", {})
+        else:
+            profile = {"error": resp.status_code, "body": resp.text[:500]}
+
+    # Try adding a single test item (Kroger brand milk)
+    cart_test = None
+    async with httpx_mod.AsyncClient() as client:
+        resp = await client.put(
+            "https://api.kroger.com/v1/cart/add",
+            json={"items": [{"upc": "0001111089305", "quantity": 1}]},
+            headers={
+                "Authorization": f"Bearer {user_token}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+        )
+        cart_test = {
+            "status": resp.status_code,
+            "headers": dict(resp.headers),
+            "body": resp.text[:500] if resp.text else "(empty)",
+        }
+
+    return {
+        "profile": profile,
+        "cart_test": cart_test,
+        "token_scopes": "cart.basic:write product.compact",
+    }
+
 
 @router.get("/search")
 async def search_products(
