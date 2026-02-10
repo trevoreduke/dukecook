@@ -78,6 +78,8 @@ async def _evaluate_single_rule(
         return await _eval_no_repeat(db, rule, config, plan_date, recipe_id)
     elif rule_type == "min_tag_per_week":
         return await _eval_min_tag(db, rule, config, plan_date, recipe_id)
+    elif rule_type == "max_tag_per_week":
+        return await _eval_max_tag(db, rule, config, plan_date, recipe_id)
     else:
         return {
             "rule_id": rule.id,
@@ -230,6 +232,45 @@ async def _eval_min_tag(db, rule, config, plan_date, recipe_id):
         }
 
 
+async def _eval_max_tag(db, rule, config, plan_date, recipe_id):
+    """E.g., max 2 pasta dishes per week."""
+    tag_name = config.get("tag", "")
+    max_count = config.get("max", 2)
+    period_days = config.get("period_days", 7)
+
+    period_start = plan_date - timedelta(days=period_days)
+    count = await _count_tag_in_plan(db, tag_name, period_start, plan_date)
+
+    proposed_has_tag = await _recipe_has_tag(db, recipe_id, tag_name)
+    if proposed_has_tag:
+        count += 1
+
+    if count > max_count:
+        return {
+            "rule_id": rule.id,
+            "rule_name": rule.name,
+            "status": "violated",
+            "message": f"'{tag_name}' would appear {count}x in {period_days} days (max {max_count})",
+            "details": {"tag": tag_name, "count": count, "max": max_count, "period_days": period_days},
+        }
+    elif count == max_count:
+        return {
+            "rule_id": rule.id,
+            "rule_name": rule.name,
+            "status": "warning",
+            "message": f"'{tag_name}' at limit: {count}x in {period_days} days (max {max_count})",
+            "details": {"tag": tag_name, "count": count, "max": max_count, "period_days": period_days},
+        }
+    else:
+        return {
+            "rule_id": rule.id,
+            "rule_name": rule.name,
+            "status": "ok",
+            "message": f"'{tag_name}': {count}/{max_count} in {period_days} days",
+            "details": {"tag": tag_name, "count": count, "max": max_count, "period_days": period_days},
+        }
+
+
 async def _count_protein_in_plan(db: AsyncSession, protein: str, start: date, end: date) -> int:
     """Count how many planned meals in the period have a given protein tag."""
     result = await db.execute(
@@ -316,6 +357,18 @@ async def get_rule_status_for_week(db: AsyncSession, week_start: date) -> list[d
                     "rule_name": rule.name,
                     "status": status,
                     "message": f"'{tag}': {count}/{min_count}+",
+                })
+
+            elif rule_type == "max_tag_per_week":
+                tag = config.get("tag", "")
+                max_count = config.get("max", 2)
+                count = await _count_tag_in_plan(db, tag, week_start, week_end)
+                status = "violated" if count > max_count else ("warning" if count == max_count else "ok")
+                statuses.append({
+                    "rule_id": rule.id,
+                    "rule_name": rule.name,
+                    "status": status,
+                    "message": f"'{tag}': {count}/{max_count}",
                 })
 
             else:

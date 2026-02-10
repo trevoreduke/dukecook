@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useContext } from 'react';
-import { getRules, createRule, updateRule, deleteRule, getPantryStaples, getTasteProfile, compareTastes, getTasteInsights } from '@/lib/api';
+import { getRules, createRule, updateRule, deleteRule, getPantryStaples, getTasteProfile, compareTastes, getTasteInsights, parseNaturalRule } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 
 export default function SettingsPage() {
@@ -37,23 +37,78 @@ export default function SettingsPage() {
 function RulesTab() {
   const [rules, setRules] = useState<any[]>([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [newRule, setNewRule] = useState({ name: '', rule_type: 'protein_max_per_week', config: {} as any });
+  const [ruleText, setRuleText] = useState('');
+  const [parsing, setParsing] = useState(false);
+  const [preview, setPreview] = useState<any>(null);
+  const [parseError, setParseError] = useState('');
 
   useEffect(() => { getRules().then(setRules).catch(() => {}); }, []);
 
-  const ruleTypes = [
-    { value: 'protein_max_per_week', label: 'Protein Max Per Week', fields: ['protein', 'max', 'period_days'] },
-    { value: 'protein_min_per_period', label: 'Protein Min Per Period', fields: ['protein', 'min', 'period_days'] },
-    { value: 'no_repeat_within_days', label: 'No Repeat Within Days', fields: ['min_days_between_repeat'] },
-    { value: 'min_tag_per_week', label: 'Min Tag Per Week', fields: ['tag', 'min', 'period_days'] },
-  ];
+  const ruleDescriptions: Record<string, string> = {
+    protein_max_per_week: 'Limits how often a protein appears',
+    protein_min_per_period: 'Requires a protein at least X times',
+    no_repeat_within_days: 'Prevents repeating the same recipe',
+    min_tag_per_week: 'Requires at least X meals with a tag',
+    max_tag_per_week: 'Limits meals with a specific tag',
+  };
 
-  const handleAdd = async () => {
-    await createRule(newRule);
+  const ruleIcons: Record<string, string> = {
+    protein_max_per_week: '🔻',
+    protein_min_per_period: '🔺',
+    no_repeat_within_days: '🔄',
+    min_tag_per_week: '📈',
+    max_tag_per_week: '📉',
+  };
+
+  const formatConfig = (rule: any) => {
+    const c = rule.config;
+    const t = rule.rule_type;
+    if (t === 'protein_max_per_week')
+      return `Max ${c.max}× ${c.protein} per ${c.period_days === 7 ? 'week' : c.period_days + ' days'}`;
+    if (t === 'protein_min_per_period')
+      return `At least ${c.min}× ${c.protein} per ${c.period_days === 7 ? 'week' : c.period_days === 14 ? '2 weeks' : c.period_days + ' days'}`;
+    if (t === 'no_repeat_within_days')
+      return `No repeats within ${c.min_days_between_repeat} days`;
+    if (t === 'min_tag_per_week')
+      return `At least ${c.min}× "${c.tag}" per ${c.period_days === 7 ? 'week' : c.period_days + ' days'}`;
+    if (t === 'max_tag_per_week')
+      return `Max ${c.max}× "${c.tag}" per ${c.period_days === 7 ? 'week' : c.period_days + ' days'}`;
+    return JSON.stringify(c);
+  };
+
+  const handleParse = async () => {
+    if (!ruleText.trim()) return;
+    setParsing(true);
+    setParseError('');
+    setPreview(null);
+    try {
+      const result = await parseNaturalRule(ruleText);
+      if (result.success) {
+        setPreview(result);
+      } else {
+        setParseError(result.error || 'Could not understand that rule. Try rephrasing.');
+      }
+    } catch (e: any) {
+      setParseError(e.message || 'Failed to parse rule');
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const handleSavePreview = async () => {
+    if (!preview) return;
+    await createRule({
+      name: preview.name,
+      rule_type: preview.rule_type,
+      config: preview.config,
+      active: true,
+    });
     const updated = await getRules();
     setRules(updated);
     setShowAdd(false);
-    setNewRule({ name: '', rule_type: 'protein_max_per_week', config: {} });
+    setRuleText('');
+    setPreview(null);
+    setParseError('');
   };
 
   const handleToggle = async (rule: any) => {
@@ -68,51 +123,151 @@ function RulesTab() {
     setRules(rules.filter(r => r.id !== id));
   };
 
+  const examples = [
+    'No more than 2 chicken dishes per week',
+    'We should eat fish at least once every two weeks',
+    'Don\'t repeat the same meal within 10 days',
+    'At least 3 vegetarian meals per week',
+    'Max 1 pasta dish per week',
+    'Eat salmon at least once a week',
+  ];
+
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <p className="text-sm text-gray-500">Rules the meal planner must follow.</p>
-        <button onClick={() => setShowAdd(!showAdd)} className="btn-primary text-sm">+ Add Rule</button>
+        <button
+          onClick={() => { setShowAdd(!showAdd); setPreview(null); setParseError(''); setRuleText(''); }}
+          className="btn-primary text-sm"
+        >
+          {showAdd ? '✕ Cancel' : '+ Add Rule'}
+        </button>
       </div>
 
       {showAdd && (
-        <div className="card p-4 space-y-3">
-          <input className="input" placeholder="Rule name" value={newRule.name} onChange={e => setNewRule({...newRule, name: e.target.value})} />
-          <select className="input" value={newRule.rule_type} onChange={e => setNewRule({...newRule, rule_type: e.target.value, config: {}})}>
-            {ruleTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-          {ruleTypes.find(t => t.value === newRule.rule_type)?.fields.map(field => (
-            <input
-              key={field}
-              className="input"
-              placeholder={field}
-              value={newRule.config[field] || ''}
-              onChange={e => setNewRule({...newRule, config: {...newRule.config, [field]: isNaN(Number(e.target.value)) ? e.target.value : Number(e.target.value) }})}
-            />
-          ))}
-          <div className="flex gap-2">
-            <button onClick={handleAdd} className="btn-primary text-sm">Save</button>
-            <button onClick={() => setShowAdd(false)} className="btn-secondary text-sm">Cancel</button>
+        <div className="card p-5 space-y-4 border-2 border-brand-200">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Describe your rule in plain English
+            </label>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1"
+                placeholder="e.g. No more than 2 chicken dishes per week"
+                value={ruleText}
+                onChange={e => { setRuleText(e.target.value); setPreview(null); setParseError(''); }}
+                onKeyDown={e => e.key === 'Enter' && !parsing && handleParse()}
+                autoFocus
+              />
+              <button
+                onClick={handleParse}
+                disabled={parsing || !ruleText.trim()}
+                className="btn-primary text-sm whitespace-nowrap disabled:opacity-50"
+              >
+                {parsing ? (
+                  <span className="flex items-center gap-1">
+                    <span className="animate-spin">🤔</span> Parsing...
+                  </span>
+                ) : '✨ Parse'}
+              </button>
+            </div>
           </div>
+
+          {/* Examples */}
+          {!preview && !parseError && (
+            <div>
+              <p className="text-xs text-gray-400 mb-2">Try something like:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {examples.map((ex, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setRuleText(ex); setPreview(null); setParseError(''); }}
+                    className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-brand-50 hover:text-brand-600 rounded-full text-gray-500 transition-colors"
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Parse Error */}
+          {parseError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              ⚠️ {parseError}
+            </div>
+          )}
+
+          {/* Preview */}
+          {preview && (
+            <div className="p-4 bg-brand-50 border border-brand-200 rounded-lg space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="font-semibold text-brand-800">
+                    {ruleIcons[preview.rule_type] || '📏'} {preview.name}
+                  </div>
+                  <div className="text-sm text-brand-600 mt-1">{preview.explanation}</div>
+                </div>
+                <span className="text-xs bg-brand-200 text-brand-700 px-2 py-0.5 rounded-full">
+                  {ruleDescriptions[preview.rule_type] || preview.rule_type}
+                </span>
+              </div>
+
+              <div className="text-xs bg-white/60 rounded p-2 font-mono text-gray-600">
+                {formatConfig({ rule_type: preview.rule_type, config: preview.config })}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button onClick={handleSavePreview} className="btn-primary text-sm">
+                  ✅ Add This Rule
+                </button>
+                <button
+                  onClick={() => { setPreview(null); }}
+                  className="btn-secondary text-sm"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
+      {/* Existing Rules */}
       {rules.map(rule => (
-        <div key={rule.id} className={`card p-4 ${!rule.active ? 'opacity-50' : ''}`}>
+        <div key={rule.id} className={`card p-4 transition-opacity ${!rule.active ? 'opacity-50' : ''}`}>
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium">{rule.name}</div>
-              <div className="text-sm text-gray-500">{rule.rule_type}: {JSON.stringify(rule.config)}</div>
+              <div className="font-medium">
+                {ruleIcons[rule.rule_type] || '📏'} {rule.name}
+              </div>
+              <div className="text-sm text-gray-500 mt-0.5">{formatConfig(rule)}</div>
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => handleToggle(rule)} className="text-sm text-gray-500 hover:text-brand-500">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleToggle(rule)}
+                className={`text-sm font-medium transition-colors ${
+                  rule.active
+                    ? 'text-green-600 hover:text-yellow-600'
+                    : 'text-gray-400 hover:text-green-600'
+                }`}
+              >
                 {rule.active ? '✅ Active' : '⏸ Paused'}
               </button>
-              <button onClick={() => handleDelete(rule.id)} className="text-sm text-red-400 hover:text-red-600">🗑</button>
+              <button onClick={() => handleDelete(rule.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                🗑
+              </button>
             </div>
           </div>
         </div>
       ))}
+
+      {rules.length === 0 && !showAdd && (
+        <div className="card p-8 text-center text-gray-400">
+          <p className="text-lg mb-2">No rules yet</p>
+          <p className="text-sm">Add a rule like &ldquo;No more than 2 chicken dishes per week&rdquo;</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -63,6 +63,8 @@ export const updateRule = (id: number, data: any) => request<any>(`/api/rules/${
 export const deleteRule = (id: number) => request<void>(`/api/rules/${id}`, { method: 'DELETE' });
 export const evaluateRules = (recipeId: number, planDate: string) =>
   request<any[]>(`/api/rules/evaluate?recipe_id=${recipeId}&plan_date=${planDate}`);
+export const parseNaturalRule = (text: string) =>
+  request<any>('/api/rules/parse', { method: 'POST', body: JSON.stringify({ text }) });
 
 // ---------- Swipe ----------
 export const createSwipeSession = (data: any) => request<any>('/api/swipe/sessions', { method: 'POST', body: JSON.stringify(data) });
