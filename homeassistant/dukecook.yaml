@@ -2,57 +2,46 @@
 # Sensors and automations for meal planning
 # URL: https://cook.trevorduke.com
 
-rest:
-  - resource: "http://192.168.1.131:8080/api/ha/tonight"
-    scan_interval: 300
-    sensor:
-      - name: "DukeCook Tonight"
-        unique_id: dukecook_tonight
-        value_template: "{{ value_json.state }}"
-        json_attributes_path: "$.attributes"
-        json_attributes:
-          - planned
-          - recipe_title
-          - cuisine
-          - total_time_min
-          - recipe_id
+command_line:
+  - sensor:
+      name: "DukeCook Tonight"
+      unique_id: dukecook_tonight
+      command: 'curl -s "http://192.168.1.131:8080/api/ha/tonight"'
+      value_template: "{{ value_json.state }}"
+      json_attributes:
+        - attributes
+      scan_interval: 300
+      icon: mdi:silverware-fork-knife
 
-  - resource: "http://192.168.1.131:8080/api/ha/week-summary"
-    scan_interval: 600
-    sensor:
-      - name: "DukeCook Week"
-        unique_id: dukecook_week
-        value_template: "{{ value_json.state }}"
-        json_attributes_path: "$.attributes"
-        json_attributes:
-          - planned_count
-          - cooked_count
-          - remaining
-          - schedule
+  - sensor:
+      name: "DukeCook Week"
+      unique_id: dukecook_week
+      command: 'curl -s "http://192.168.1.131:8080/api/ha/week-summary"'
+      value_template: "{{ value_json.state }}"
+      json_attributes:
+        - attributes
+      scan_interval: 600
+      icon: mdi:calendar-week
 
-  - resource: "http://192.168.1.131:8080/api/ha/shopping-count"
-    scan_interval: 120
-    sensor:
-      - name: "DukeCook Shopping"
-        unique_id: dukecook_shopping
-        value_template: "{{ value_json.state }}"
-        json_attributes_path: "$.attributes"
-        json_attributes:
-          - total
-          - checked
-          - remaining
+  - sensor:
+      name: "DukeCook Shopping"
+      unique_id: dukecook_shopping
+      command: 'curl -s "http://192.168.1.131:8080/api/ha/shopping-count"'
+      value_template: "{{ value_json.state }}"
+      json_attributes:
+        - attributes
+      scan_interval: 120
+      icon: mdi:cart
 
-  - resource: "http://192.168.1.131:8080/api/ha/stats"
-    scan_interval: 3600
-    sensor:
-      - name: "DukeCook Stats"
-        unique_id: dukecook_stats
-        value_template: "{{ value_json.state }}"
-        json_attributes_path: "$.attributes"
-        json_attributes:
-          - total_recipes
-          - cooked_this_week
-          - total_meals_cooked
+  - sensor:
+      name: "DukeCook Stats"
+      unique_id: dukecook_stats
+      command: 'curl -s "http://192.168.1.131:8080/api/ha/stats"'
+      value_template: "{{ value_json.state }}"
+      json_attributes:
+        - attributes
+      scan_interval: 3600
+      icon: mdi:chart-bar
 
 automation:
   - id: dukecook_dinner_reminder
