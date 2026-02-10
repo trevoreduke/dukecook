@@ -98,52 +98,32 @@ export default function ShoppingPage() {
             </div>
           </div>
 
-          {/* 🛒 Order Delivery */}
+          {/* 🛒 Order from Kroger */}
           {list.items?.length > 0 && (() => {
             const uncheckedItems = list.items.filter((i: any) => !i.checked);
             if (uncheckedItems.length === 0) return null;
-            const ingredientNames = uncheckedItems.map((i: any) => i.name).join(', ');
-            const instacartUrl = `https://www.instacart.com/store/search/${encodeURIComponent(ingredientNames)}`;
-            const topItems = uncheckedItems.map((i: any) => i.name).slice(0, 8).join(' ');
             return (
-              <div className="card p-4 bg-green-50 border-green-200">
+              <div className="card p-4 bg-blue-50 border-blue-200">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-green-800 text-sm">🚚 Get it delivered</h3>
-                  <span className="text-xs text-green-600">{uncheckedItems.length} items remaining</span>
+                  <h3 className="font-semibold text-blue-800 text-sm">🛒 Shop at Kroger</h3>
+                  <span className="text-xs text-blue-600">{uncheckedItems.length} items remaining</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <a
-                    href={instacartUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-                  >
-                    🥕 Instacart
-                  </a>
-                  <a
-                    href={`https://www.kroger.com/search?query=${encodeURIComponent(topItems)}&searchType=default_search`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                  >
-                    🏪 Kroger
-                  </a>
-                  <a
-                    href={`https://www.meijer.com/shopping/search.html?text=${encodeURIComponent(topItems)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-                  >
-                    🛒 Meijer
-                  </a>
-                  <a
-                    href={`https://www.walmart.com/search?q=${encodeURIComponent(topItems)}&cat_id=976759`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium"
-                  >
-                    🏬 Walmart
-                  </a>
+                <div className="space-y-1 mb-3">
+                  {uncheckedItems.map((item: any) => (
+                    <a
+                      key={item.id}
+                      href={`https://www.kroger.com/search?query=${encodeURIComponent(item.name)}&searchType=default_search`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors text-sm"
+                    >
+                      <span className="text-blue-400">🔍</span>
+                      <span className="text-gray-700">{item.name}</span>
+                      {item.quantity && (
+                        <span className="text-gray-400 text-xs ml-auto">{item.quantity} {item.unit}</span>
+                      )}
+                    </a>
+                  ))}
                 </div>
               </div>
             );

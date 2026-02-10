@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getRecipe, deleteRecipe, createRating } from '@/lib/api';
@@ -46,27 +46,11 @@ export default function RecipeDetailPage() {
   const [ratingNotes, setRatingNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
-  const instacartLoaded = useRef(false);
-
   useEffect(() => {
     if (params.id) {
       getRecipe(Number(params.id)).then(setRecipe).catch(() => null).finally(() => setLoading(false));
     }
   }, [params.id]);
-
-  // Load Instacart widget script once recipe is loaded
-  useEffect(() => {
-    if (!recipe || instacartLoaded.current) return;
-    instacartLoaded.current = true;
-    const existing = document.getElementById('instacart-widget-script');
-    if (!existing) {
-      const script = document.createElement('script');
-      script.id = 'instacart-widget-script';
-      script.src = 'https://widgets.instacart.com/widget-bundle-v2.js';
-      script.async = true;
-      document.body.appendChild(script);
-    }
-  }, [recipe]);
 
   const handleDelete = async () => {
     if (!confirm('Delete this recipe?')) return;
@@ -93,16 +77,6 @@ export default function RecipeDetailPage() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // Build Instacart deep link as fallback (in case widget doesn't load)
-  const buildInstacartLink = () => {
-    if (!recipe?.ingredients?.length) return '';
-    const ingredients = recipe.ingredients
-      .map((ing: any) => ing.ingredient_name || ing.raw_text)
-      .filter(Boolean)
-      .join(', ');
-    return `https://www.instacart.com/store/search/${encodeURIComponent(ingredients)}`;
   };
 
   if (loading) return <div className="text-center py-12 text-gray-400">Loading...</div>;
@@ -177,62 +151,43 @@ export default function RecipeDetailPage() {
         <button onClick={handleDelete} className="btn-danger">🗑</button>
       </div>
 
-      {/* 🛒 Shop Ingredients — Instacart Widget + Fallback Links */}
-      {recipe.ingredients?.length > 0 && (
-        <div className="card p-5 bg-green-50 border-green-200">
-          <h3 className="font-semibold text-green-800 mb-3">🛒 Shop Ingredients</h3>
+      {/* 🛒 Shop Ingredients — Kroger */}
+      {recipe.ingredients?.length > 0 && (() => {
+        // Build clean ingredient names for Kroger search links
+        const ingredients = recipe.ingredients
+          .map((i: any) => i.ingredient_name || '')
+          .filter((n: string) => n && n.length > 1);
 
-          {/* Instacart Widget (auto-reads JSON-LD schema from page) */}
-          <div className="mb-3">
-            <div id="shop-with-instacart-v1" data-affiliate_id="" data-affiliate_platform=""></div>
-          </div>
-
-          {/* Direct store links as alternatives / fallbacks */}
-          <div className="flex flex-wrap gap-2">
-            <a
-              href={buildInstacartLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-            >
-              🥕 Shop on Instacart
-            </a>
+        return (
+          <div className="card p-5 bg-blue-50 border-blue-200">
+            <h3 className="font-semibold text-blue-800 mb-3">🛒 Shop at Kroger</h3>
+            <div className="space-y-1.5 mb-3">
+              {ingredients.map((name: string, idx: number) => (
+                <a
+                  key={idx}
+                  href={`https://www.kroger.com/search?query=${encodeURIComponent(name)}&searchType=default_search`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors text-sm"
+                >
+                  <span className="text-blue-400">🔍</span>
+                  <span className="text-gray-700">{name}</span>
+                </a>
+              ))}
+            </div>
             <a
               href={`https://www.kroger.com/search?query=${encodeURIComponent(
-                recipe.ingredients.map((i: any) => i.ingredient_name || '').filter(Boolean).slice(0, 5).join(' ')
+                ingredients.slice(0, 3).join(' ')
               )}&searchType=default_search`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
             >
-              🏪 Kroger
-            </a>
-            <a
-              href={`https://www.meijer.com/shopping/search.html?text=${encodeURIComponent(
-                recipe.ingredients.map((i: any) => i.ingredient_name || '').filter(Boolean).slice(0, 5).join(' ')
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
-            >
-              🛒 Meijer
-            </a>
-            <a
-              href={`https://www.walmart.com/search?q=${encodeURIComponent(
-                recipe.ingredients.map((i: any) => i.ingredient_name || '').filter(Boolean).slice(0, 5).join(' ')
-              )}&cat_id=976759`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium"
-            >
-              🏬 Walmart
+              🏪 Open Kroger
             </a>
           </div>
-          <p className="text-xs text-green-600 mt-2">
-            Opens your chosen store with recipe ingredients ready to add to cart.
-          </p>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Original Recipe View */}
       {showOriginal && (
