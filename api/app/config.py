@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:3000"
 
+    # Kroger API
+    kroger_client_id: str = ""
+    kroger_client_secret: str = ""
+    kroger_store_id: str = "01800661"  # Kroger Middlebelt, Farmington Hills MI
+
     # Images
     image_dir: str = "./data/images"
 

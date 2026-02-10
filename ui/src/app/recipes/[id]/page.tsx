@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getRecipe, deleteRecipe, createRating } from '@/lib/api';
+import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 
 // Build schema.org Recipe JSON-LD for Instacart widget + SEO
@@ -46,11 +46,22 @@ export default function RecipeDetailPage() {
   const [ratingNotes, setRatingNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [krogerStatus, setKrogerStatus] = useState<any>(null);
+  const [krogerMatch, setKrogerMatch] = useState<any>(null);
+  const [krogerLoading, setKrogerLoading] = useState(false);
+  const [krogerCartResult, setKrogerCartResult] = useState<any>(null);
+  const [showKrogerDetails, setShowKrogerDetails] = useState(false);
+
   useEffect(() => {
     if (params.id) {
       getRecipe(Number(params.id)).then(setRecipe).catch(() => null).finally(() => setLoading(false));
     }
   }, [params.id]);
+
+  // Check Kroger connection status
+  useEffect(() => {
+    getKrogerStatus(currentUser?.id || 1).then(setKrogerStatus).catch(() => null);
+  }, [currentUser]);
 
   const handleDelete = async () => {
     if (!confirm('Delete this recipe?')) return;
@@ -151,43 +162,141 @@ export default function RecipeDetailPage() {
         <button onClick={handleDelete} className="btn-danger">🗑</button>
       </div>
 
-      {/* 🛒 Shop Ingredients — Kroger */}
-      {recipe.ingredients?.length > 0 && (() => {
-        // Build clean ingredient names for Kroger search links
-        const ingredients = recipe.ingredients
-          .map((i: any) => i.ingredient_name || '')
-          .filter((n: string) => n && n.length > 1);
+      {/* 🛒 Kroger One-Click Cart */}
+      {recipe.ingredients?.length > 0 && (
+        <div className="card p-5 bg-blue-50 border-blue-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-blue-800">🛒 Kroger</h3>
+            {krogerStatus?.connected && (
+              <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">✓ Connected</span>
+            )}
+          </div>
 
-        return (
-          <div className="card p-5 bg-blue-50 border-blue-200">
-            <h3 className="font-semibold text-blue-800 mb-3">🛒 Shop at Kroger</h3>
-            <div className="space-y-1.5 mb-3">
-              {ingredients.map((name: string, idx: number) => (
+          {/* Not connected — show connect button */}
+          {krogerStatus && !krogerStatus.connected && (
+            <div className="text-center py-3">
+              <p className="text-sm text-gray-600 mb-3">Connect your Kroger account to add ingredients to your cart with one tap.</p>
+              <a
+                href={`/api/kroger/connect?user_id=${currentUser?.id || 1}`}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                🔗 Connect Kroger Account
+              </a>
+            </div>
+          )}
+
+          {/* Connected — show one-click add to cart */}
+          {krogerStatus?.connected && !krogerCartResult && (
+            <div>
+              {/* Preview matches if loaded */}
+              {krogerMatch && showKrogerDetails && (
+                <div className="mb-3 space-y-1.5 max-h-64 overflow-y-auto">
+                  {krogerMatch.items.map((item: any, idx: number) => (
+                    <div key={idx} className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-sm ${item.matched ? 'bg-white border border-blue-200' : 'bg-red-50 border border-red-200'}`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span>{item.matched ? '✅' : '❌'}</span>
+                        <span className="truncate text-gray-700">{item.ingredient}</span>
+                      </div>
+                      {item.matched && (
+                        <div className="flex items-center gap-2 ml-2 shrink-0">
+                          <span className="text-xs text-gray-500">{item.size}</span>
+                          <span className="text-xs font-medium">${item.price?.toFixed(2) || '?'}</span>
+                          {item.on_sale && <span className="text-xs text-red-500">SALE</span>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <div className="text-right text-sm font-medium text-blue-800 pt-1">
+                    Est. total: ${krogerMatch.estimated_cost?.toFixed(2)}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    setKrogerLoading(true);
+                    try {
+                      // Match + add to cart in one shot
+                      const result = await addRecipeToKrogerCart(recipe.id, currentUser?.id || 1);
+                      setKrogerCartResult(result);
+                    } catch (e: any) {
+                      if (e.message?.includes('401')) {
+                        // Token expired, need to reconnect
+                        setKrogerStatus({ connected: false });
+                      } else {
+                        alert(e.message || 'Failed to add to cart');
+                      }
+                    } finally {
+                      setKrogerLoading(false);
+                    }
+                  }}
+                  disabled={krogerLoading}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+                >
+                  {krogerLoading ? (
+                    <>⏳ Adding to cart...</>
+                  ) : (
+                    <>🛒 Add All to Kroger Cart</>
+                  )}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!krogerMatch) {
+                      setKrogerLoading(true);
+                      try {
+                        const match = await matchRecipeToKroger(recipe.id);
+                        setKrogerMatch(match);
+                        setShowKrogerDetails(true);
+                      } catch (e) {}
+                      setKrogerLoading(false);
+                    } else {
+                      setShowKrogerDetails(!showKrogerDetails);
+                    }
+                  }}
+                  className="px-3 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                  title="Preview ingredient matches"
+                >
+                  {showKrogerDetails ? '▲' : '▼'}
+                </button>
+              </div>
+              <p className="text-xs text-blue-600 mt-2">
+                Auto-matches ingredients → adds to your Kroger cart for pickup/delivery
+              </p>
+            </div>
+          )}
+
+          {/* Success state */}
+          {krogerCartResult && (
+            <div className="text-center py-3">
+              <div className="text-3xl mb-2">🎉</div>
+              <p className="font-medium text-green-800 text-lg">{krogerCartResult.message}</p>
+              <p className="text-sm text-gray-600 mt-1">Est. cost: ${krogerCartResult.estimated_cost?.toFixed(2)}</p>
+              {krogerCartResult.skipped?.length > 0 && (
+                <p className="text-xs text-amber-600 mt-2">
+                  Not found: {krogerCartResult.skipped.join(', ')}
+                </p>
+              )}
+              <div className="flex gap-2 justify-center mt-3">
                 <a
-                  key={idx}
-                  href={`https://www.kroger.com/search?query=${encodeURIComponent(name)}&searchType=default_search`}
+                  href="https://www.kroger.com/cart"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors text-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                 >
-                  <span className="text-blue-400">🔍</span>
-                  <span className="text-gray-700">{name}</span>
+                  🛒 View Kroger Cart
                 </a>
-              ))}
+                <button
+                  onClick={() => setKrogerCartResult(null)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                >
+                  Done
+                </button>
+              </div>
             </div>
-            <a
-              href={`https://www.kroger.com/search?query=${encodeURIComponent(
-                ingredients.slice(0, 3).join(' ')
-              )}&searchType=default_search`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-            >
-              🏪 Open Kroger
-            </a>
-          </div>
-        );
-      })()}
+          )}
+        </div>
+      )}
 
       {/* Original Recipe View */}
       {showOriginal && (

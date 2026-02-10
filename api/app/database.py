@@ -45,7 +45,7 @@ async def init_db():
             SwipeSession, SwipeCard, SwipeMatch,
             TasteProfile, TastePreference, CookingHistory,
             ShoppingList, ShoppingItem, PantryStaple,
-            CalendarEvent, ImportLog,
+            CalendarEvent, ImportLog, KrogerToken,
         )
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created successfully")

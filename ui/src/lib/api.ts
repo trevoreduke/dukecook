@@ -121,6 +121,14 @@ export const updateShoppingItem = (itemId: number, data: any) =>
   request<any>(`/api/shopping/items/${itemId}`, { method: 'PUT', body: JSON.stringify(data) });
 export const getPantryStaples = () => request<any[]>('/api/shopping/pantry/staples');
 
+// ---------- Kroger ----------
+export const getKrogerStatus = (userId: number = 1) =>
+  request<any>(`/api/kroger/status?user_id=${userId}`);
+export const matchRecipeToKroger = (recipeId: number) =>
+  request<any>(`/api/kroger/match/${recipeId}`);
+export const addRecipeToKrogerCart = (recipeId: number, userId: number = 1) =>
+  request<any>(`/api/kroger/cart/add/${recipeId}?user_id=${userId}`, { method: 'POST' });
+
 // ---------- Taste ----------
 export const getTasteProfile = (userId: number) => request<any>(`/api/taste/profile/${userId}`);
 export const refreshTasteProfile = (userId: number) => request<any>(`/api/taste/profile/${userId}/refresh`, { method: 'POST' });

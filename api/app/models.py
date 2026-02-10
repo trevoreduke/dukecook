@@ -396,6 +396,24 @@ class CalendarEvent(Base):
     )
 
 
+# ---------- Kroger Integration ----------
+
+class KrogerToken(Base):
+    """Store Kroger OAuth tokens per user."""
+    __tablename__ = "kroger_tokens"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    access_token = Column(Text, nullable=False)
+    refresh_token = Column(Text, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    store_id = Column(String(20), default="01800661")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User")
+
+
 # ---------- Import Log ----------
 
 class ImportLog(Base):
