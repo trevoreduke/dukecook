@@ -26,7 +26,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://dukecook:${DB_PASSWORD:-dukecook_dev}@db:5432/dukecook
       DATABASE_URL_SYNC: postgresql://dukecook:${DB_PASSWORD:-dukecook_dev}@db:5432/dukecook
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      GOOGLE_CALENDAR_CREDENTIALS: ${GOOGLE_CALENDAR_CREDENTIALS:-}
+      HA_URL: ${HA_URL:-}
+      HA_TOKEN: ${HA_TOKEN:-}
+      HA_CALENDARS: ${HA_CALENDARS:-calendar.trevor_duke_gmail_com,calendar.runsweetlew_gmail_com,calendar.the_house_calendar}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       IMAGE_DIR: /data/images

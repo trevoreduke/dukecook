@@ -14,6 +14,7 @@ from app.schemas import (
 )
 from app.services.rules_engine import evaluate_rules, get_rule_status_for_week
 from app.services.suggestion_engine import suggest_meals
+from app.services.ha_calendar import fetch_ha_events
 
 logger = logging.getLogger("dukecook.routers.planner")
 router = APIRouter(prefix="/api/planner", tags=["planner"])
@@ -41,13 +42,20 @@ async def get_week_plan(
     )
     plans = plan_result.scalars().all()
 
-    # Get calendar events
+    # Get local calendar events
     cal_result = await db.execute(
         select(CalendarEvent)
         .where(and_(CalendarEvent.date >= start, CalendarEvent.date <= week_end))
         .order_by(CalendarEvent.date)
     )
     cal_events = cal_result.scalars().all()
+
+    # Fetch HA calendar events
+    try:
+        ha_events = await fetch_ha_events(start, week_end)
+    except Exception as e:
+        logger.warning(f"Failed to fetch HA calendar events: {e}")
+        ha_events = []
 
     # Get rule statuses
     rule_status = await get_rule_status_for_week(db, start)
@@ -57,8 +65,12 @@ async def get_week_plan(
     for i in range(7):
         d = start + timedelta(days=i)
         day_plans = [p for p in plans if p.date == d]
-        day_events = [e for e in cal_events if e.date == d]
-        has_conflict = any(e.is_dinner_conflict for e in day_events)
+        day_local_events = [e for e in cal_events if e.date == d]
+        day_ha_events = [e for e in ha_events if e["date"] == str(d)]
+        has_conflict = (
+            any(e.is_dinner_conflict for e in day_local_events)
+            or any(e["is_dinner_conflict"] for e in day_ha_events)
+        )
 
         # Build meal plan entries with recipe info
         meals = []
@@ -75,10 +87,24 @@ async def get_week_plan(
                 "notes": p.notes,
             })
 
+        # Merge local + HA events
         events = [
             CalendarEventOut.model_validate(e).model_dump()
-            for e in day_events
+            for e in day_local_events
         ]
+        for ha_ev in day_ha_events:
+            events.append({
+                "id": None,
+                "date": ha_ev["date"],
+                "start_time": ha_ev.get("start_time"),
+                "end_time": ha_ev.get("end_time"),
+                "summary": ha_ev["summary"],
+                "is_dinner_conflict": ha_ev["is_dinner_conflict"],
+                "source": "homeassistant",
+                "calendar": ha_ev.get("calendar", ""),
+                "location": ha_ev.get("location", ""),
+                "all_day": ha_ev.get("all_day", False),
+            })
 
         days.append({
             "date": str(d),
@@ -257,3 +283,18 @@ async def get_availability(
         current += timedelta(days=1)
 
     return availability
+
+
+@router.get("/calendar/ha")
+async def get_ha_calendar_events(
+    start: date = Query(...),
+    end: date = Query(...),
+):
+    """Fetch events from Home Assistant calendars."""
+    events = await fetch_ha_events(start, end)
+    conflicts = sum(1 for e in events if e["is_dinner_conflict"])
+    return {
+        "events": events,
+        "total": len(events),
+        "dinner_conflicts": conflicts,
+    }

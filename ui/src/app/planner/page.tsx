@@ -167,13 +167,22 @@ export default function PlannerPage() {
                 </div>
               </div>
 
-              {/* Calendar conflicts */}
+              {/* Calendar events */}
               {day.calendar_events?.length > 0 && (
-                <div className="mb-2">
-                  {day.calendar_events.map((e: any) => (
-                    <div key={e.id} className="flex items-center gap-2 text-sm text-red-600">
-                      <span>🚫 {e.summary}</span>
-                      <button onClick={() => handleUnblockDay(e.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                <div className="mb-2 space-y-1">
+                  {day.calendar_events.map((e: any, idx: number) => (
+                    <div key={e.id || `ha-${idx}`} className={`flex items-center gap-2 text-sm ${e.is_dinner_conflict ? 'text-red-500' : 'text-gray-500'}`}>
+                      <span>{e.source === 'homeassistant' ? '📅' : '🚫'}</span>
+                      <span className="flex-1">
+                        {e.start_time && <span className="text-xs text-gray-400 mr-1">{e.start_time}</span>}
+                        {e.summary}
+                        {e.location && <span className="text-xs text-gray-400 ml-1">📍 {e.location}</span>}
+                        {e.calendar && <span className="text-xs text-gray-400 ml-1">({e.calendar})</span>}
+                      </span>
+                      {e.is_dinner_conflict && <span className="text-xs badge bg-red-100 text-red-600">dinner conflict</span>}
+                      {e.id && e.source !== 'homeassistant' && (
+                        <button onClick={() => handleUnblockDay(e.id)} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                      )}
                     </div>
                   ))}
                 </div>

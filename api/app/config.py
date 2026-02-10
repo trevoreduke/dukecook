@@ -12,9 +12,10 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
 
-    # Google Calendar
-    google_calendar_credentials: str = ""
-    google_calendar_id: str = "primary"
+    # Home Assistant Calendar Integration
+    ha_url: str = ""  # e.g. https://6g4hp0yxylk47d9p85gxoala2lvs1w8l.ui.nabu.casa
+    ha_token: str = ""  # Long-lived access token
+    ha_calendars: str = "calendar.trevor_duke_gmail_com,calendar.runsweetlew_gmail_com,calendar.the_house_calendar"  # Comma-separated entity IDs
 
     # Logging
     log_level: str = "INFO"
