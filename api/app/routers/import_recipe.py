@@ -71,6 +71,25 @@ async def import_from_photo(
         "extra_data": {"filename": file.filename, "size": len(image_data), "content_type": content_type, "user_id": user_id}
     })
 
+    # Save the original photo to disk so we can reference it later
+    from app.config import get_settings
+    from pathlib import Path
+    import hashlib
+
+    settings = get_settings()
+    image_dir = Path(settings.image_dir)
+    image_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save original upload with a hash-based filename
+    file_hash = hashlib.md5(image_data).hexdigest()[:12]
+    ext = ".jpg" if "jpeg" in media_type else (".png" if "png" in media_type else ".webp")
+    orig_filename = f"photo_import_{file_hash}{ext}"
+    orig_path = image_dir / orig_filename
+    orig_path.write_bytes(image_data)
+    saved_image_path = f"/images/{orig_filename}"
+
+    logger.info(f"Saved original photo: {saved_image_path} ({len(image_data)} bytes)")
+
     # Extract recipe via Claude Vision
     recipe_data = await extract_recipe_from_image(image_data, media_type, file.filename or "photo")
     if not recipe_data:
@@ -89,6 +108,10 @@ async def import_from_photo(
     if not recipe_data.get("tags"):
         recipe_data["tags"] = await enrich_recipe_tags(recipe_data)
 
+    # Use the saved photo as the recipe image (photo imports won't have an image_url)
+    if not recipe_data.get("image_url"):
+        recipe_data["_saved_image_path"] = saved_image_path
+
     # Save to database using shared save logic
     try:
         result = await save_recipe_data(
@@ -98,6 +121,7 @@ async def import_from_photo(
             extraction_method="photo",
             user_id=user_id,
             start_time=start_time,
+            source_image_path=saved_image_path,
         )
         return result
     except Exception as e:

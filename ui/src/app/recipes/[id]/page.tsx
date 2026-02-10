@@ -85,9 +85,15 @@ export default function RecipeDetailPage() {
           )}
 
           {recipe.source_url && (
-            <a href={recipe.source_url} target="_blank" rel="noopener noreferrer" className="text-sm text-brand-500 hover:underline">
-              📎 Original Recipe →
-            </a>
+            recipe.source_url.startsWith('photo:') ? (
+              <span className="text-sm text-gray-500">
+                📸 Imported from photo{recipe.source_url.replace('photo:', '') !== 'photo' ? `: ${recipe.source_url.replace('photo:', '')}` : ''}
+              </span>
+            ) : (
+              <a href={recipe.source_url} target="_blank" rel="noopener noreferrer" className="text-sm text-brand-500 hover:underline">
+                🔗 Original Recipe →
+              </a>
+            )
           )}
         </div>
       </div>

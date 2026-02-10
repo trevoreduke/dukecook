@@ -217,6 +217,7 @@ async def save_recipe_data(
     extraction_method: str,
     user_id: Optional[int] = None,
     start_time: Optional[float] = None,
+    source_image_path: Optional[str] = None,
 ) -> dict:
     """Save extracted recipe data to the database.
 
@@ -293,10 +294,15 @@ async def save_recipe_data(
 
         await db.flush()
 
-        # Download image if URL provided
+        # Download image if URL provided, or use saved source image (photo imports)
         image_path = await download_image(recipe_data.get("image_url", ""), recipe.id)
         if image_path:
             recipe.image_path = image_path
+        elif source_image_path:
+            # For photo imports: use the uploaded photo as the recipe image
+            recipe.image_path = source_image_path
+            logger.info(f"Using source photo as recipe image: {source_image_path}")
+        if recipe.image_path:
             await db.flush()
 
         duration_ms = int((time.time() - start_time) * 1000)
