@@ -44,6 +44,24 @@ export const importRecipe = (url: string, userId?: number) =>
 export const bulkImport = (urls: string[], userId?: number) =>
   request<any[]>('/api/recipes/import/bulk', { method: 'POST', body: JSON.stringify({ urls, user_id: userId }) });
 
+export const importFromPhoto = async (file: File, userId?: number): Promise<any> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (userId) formData.append('user_id', String(userId));
+
+  const res = await fetch('/api/recipes/import/photo', {
+    method: 'POST',
+    body: formData,
+    // Don't set Content-Type — browser sets multipart boundary automatically
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`API error ${res.status}: ${error}`);
+  }
+  return res.json();
+};
+
 // ---------- Planner ----------
 export const getWeekPlan = (start?: string) => {
   const qs = start ? `?start=${start}` : '';

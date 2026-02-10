@@ -123,6 +123,123 @@ HTML:
         return None
 
 
+async def extract_recipe_from_image(image_data: bytes, media_type: str, filename: str = "") -> Optional[dict]:
+    """Use Claude Vision to extract recipe data from a photo.
+
+    Handles photos of cookbook pages, handwritten recipes, recipe cards,
+    magazine clippings, screenshots, etc.
+
+    Returns a dict matching our recipe schema, or None on failure.
+    """
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        logger.error("ANTHROPIC_API_KEY not configured — cannot extract recipe from image")
+        return None
+
+    import base64
+    encoded = base64.standard_b64encode(image_data).decode("utf-8")
+
+    logger.info(f"AI extracting recipe from image: {filename} ({len(image_data)} bytes, {media_type})")
+
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    prompt = """Look at this image of a recipe. Extract ALL the recipe information you can see and return it as a JSON object.
+
+{
+  "title": "Recipe title",
+  "description": "Brief description of the dish",
+  "prep_time_min": 15,
+  "cook_time_min": 30,
+  "total_time_min": 45,
+  "servings": 4,
+  "cuisine": "Italian",
+  "difficulty": "easy|medium|hard",
+  "ingredients": [
+    {"raw_text": "2 cups all-purpose flour", "quantity": 2, "unit": "cups", "name": "all-purpose flour", "preparation": "", "group": ""},
+    {"raw_text": "1 lb chicken breast, diced", "quantity": 1, "unit": "lb", "name": "chicken breast", "preparation": "diced", "group": ""}
+  ],
+  "steps": [
+    {"instruction": "Preheat oven to 375°F.", "duration_minutes": null, "timer_label": ""},
+    {"instruction": "Sear chicken for 3 minutes per side.", "duration_minutes": 6, "timer_label": "Sear chicken"}
+  ],
+  "tags": ["italian", "chicken", "easy", "weeknight"]
+}
+
+Rules:
+- Extract ALL ingredients and ALL steps you can read
+- Parse quantities as numbers (1.5, 0.25, etc.)
+- If a step has a clear timer (e.g., "cook for 10 minutes"), set duration_minutes and timer_label
+- Tags should include: cuisine, primary protein, difficulty, and any relevant categories
+- For handwritten recipes, do your best to read the handwriting
+- If the image shows multiple recipes, extract only the main/first one
+- If something is unclear or illegible, make your best guess and note it
+- If info is missing (no servings listed, etc.), use reasonable defaults
+- Return ONLY the JSON, no other text"""
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": encoded,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": prompt,
+                    },
+                ],
+            }],
+        )
+
+        text = response.content[0].text.strip()
+
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1]
+            if text.endswith("```"):
+                text = text[:-3]
+            elif "```" in text:
+                text = text[:text.rfind("```")]
+            text = text.strip()
+
+        recipe_data = json.loads(text)
+
+        logger.info(
+            f"AI extracted recipe from image: {recipe_data.get('title', 'Unknown')}",
+            extra={
+                "extra_data": {
+                    "filename": filename,
+                    "title": recipe_data.get("title"),
+                    "ingredient_count": len(recipe_data.get("ingredients", [])),
+                    "step_count": len(recipe_data.get("steps", [])),
+                    "tokens_in": response.usage.input_tokens,
+                    "tokens_out": response.usage.output_tokens,
+                }
+            },
+        )
+        return recipe_data
+
+    except json.JSONDecodeError as e:
+        logger.error(f"AI returned invalid JSON from image: {e}", extra={
+            "extra_data": {"filename": filename, "response_text": text[:500] if 'text' in dir() else ""}
+        })
+        return None
+    except anthropic.APIError as e:
+        logger.error(f"Anthropic API error (image): {e}", exc_info=True)
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in image extraction: {e}", exc_info=True)
+        return None
+
+
 async def enrich_recipe_tags(recipe_data: dict) -> list[str]:
     """Use AI to generate appropriate tags for a recipe.
 

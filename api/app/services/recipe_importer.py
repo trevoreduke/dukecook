@@ -210,53 +210,27 @@ async def get_or_create_ingredient(db: AsyncSession, name: str, category: str = 
     return ingredient
 
 
-async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[int] = None) -> dict:
-    """Full import pipeline: fetch → extract → save.
+async def save_recipe_data(
+    db: AsyncSession,
+    recipe_data: dict,
+    source_url: str,
+    extraction_method: str,
+    user_id: Optional[int] = None,
+    start_time: Optional[float] = None,
+) -> dict:
+    """Save extracted recipe data to the database.
 
-    Returns {"status": "success", "recipe_id": N, ...} or {"status": "failed", "error": "..."}
+    Shared by URL import, photo import, and any other import method.
+    Returns {"status": "success", "recipe_id": N, ...} or {"status": "failed", ...}
     """
-    start_time = time.time()
-    logger.info(f"Starting recipe import from URL: {url}", extra={
-        "extra_data": {"url": url, "user_id": user_id}
-    })
+    if start_time is None:
+        start_time = time.time()
 
-    # 1. Fetch
-    html = await fetch_url(url)
-    if not html:
-        duration_ms = int((time.time() - start_time) * 1000)
-        log_entry = ImportLog(url=url, status="failed", error="Failed to fetch URL", duration_ms=duration_ms)
-        db.add(log_entry)
-        await db.flush()
-        return {"status": "failed", "error": "Failed to fetch URL", "url": url, "duration_ms": duration_ms}
-
-    # 2. Try structured extraction first
-    recipe_data = try_structured_extraction(html, url)
-    extraction_method = "schema" if recipe_data else ""
-
-    # 3. Fall back to AI extraction
-    if not recipe_data:
-        logger.info(f"Falling back to AI extraction for: {url}")
-        recipe_data = await extract_recipe_from_html(html, url)
-        extraction_method = "ai" if recipe_data else ""
-
-    if not recipe_data:
-        duration_ms = int((time.time() - start_time) * 1000)
-        log_entry = ImportLog(url=url, status="failed", error="Could not extract recipe data", duration_ms=duration_ms)
-        db.add(log_entry)
-        await db.flush()
-        logger.error(f"Failed to extract recipe from: {url}")
-        return {"status": "failed", "error": "Could not extract recipe data", "url": url, "duration_ms": duration_ms}
-
-    # 4. Enrich tags via AI if we used structured extraction (which doesn't get tags)
-    if extraction_method == "schema":
-        recipe_data["tags"] = await enrich_recipe_tags(recipe_data)
-
-    # 5. Save to database
     try:
         recipe = Recipe(
             title=recipe_data.get("title", "Untitled"),
             description=recipe_data.get("description", ""),
-            source_url=url,
+            source_url=source_url,
             image_url=recipe_data.get("image_url", ""),
             prep_time_min=recipe_data.get("prep_time_min"),
             cook_time_min=recipe_data.get("cook_time_min"),
@@ -273,7 +247,6 @@ async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[i
 
         # Save ingredients
         for i, ing in enumerate(recipe_data.get("ingredients", [])):
-            # Try to link to normalized ingredient
             ing_name = ing.get("name", ing.get("raw_text", ""))
             normalized_ing = await get_or_create_ingredient(db, ing_name)
 
@@ -320,7 +293,7 @@ async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[i
 
         await db.flush()
 
-        # Download image
+        # Download image if URL provided
         image_path = await download_image(recipe_data.get("image_url", ""), recipe.id)
         if image_path:
             recipe.image_path = image_path
@@ -330,7 +303,7 @@ async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[i
 
         # Log the import
         log_entry = ImportLog(
-            url=url,
+            url=source_url,
             status="success",
             recipe_id=recipe.id,
             extraction_method=extraction_method,
@@ -346,7 +319,7 @@ async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[i
                 "extra_data": {
                     "recipe_id": recipe.id,
                     "title": recipe.title,
-                    "url": url,
+                    "source": source_url,
                     "method": extraction_method,
                     "duration_ms": duration_ms,
                     "ingredients": len(recipe_data.get("ingredients", [])),
@@ -360,7 +333,7 @@ async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[i
             "status": "success",
             "recipe_id": recipe.id,
             "recipe_title": recipe.title,
-            "url": url,
+            "url": source_url,
             "extraction_method": extraction_method,
             "duration_ms": duration_ms,
         }
@@ -368,9 +341,54 @@ async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[i
     except Exception as e:
         duration_ms = int((time.time() - start_time) * 1000)
         logger.error(f"Failed to save recipe: {e}", exc_info=True, extra={
-            "extra_data": {"url": url, "duration_ms": duration_ms}
+            "extra_data": {"source": source_url, "duration_ms": duration_ms}
         })
-        log_entry = ImportLog(url=url, status="failed", error=str(e), duration_ms=duration_ms)
+        log_entry = ImportLog(url=source_url, status="failed", error=str(e), duration_ms=duration_ms)
         db.add(log_entry)
         await db.flush()
-        return {"status": "failed", "error": str(e), "url": url, "duration_ms": duration_ms}
+        return {"status": "failed", "error": str(e), "url": source_url, "duration_ms": duration_ms}
+
+
+async def import_recipe_from_url(db: AsyncSession, url: str, user_id: Optional[int] = None) -> dict:
+    """Full import pipeline: fetch → extract → save.
+
+    Returns {"status": "success", "recipe_id": N, ...} or {"status": "failed", "error": "..."}
+    """
+    start_time = time.time()
+    logger.info(f"Starting recipe import from URL: {url}", extra={
+        "extra_data": {"url": url, "user_id": user_id}
+    })
+
+    # 1. Fetch
+    html = await fetch_url(url)
+    if not html:
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_entry = ImportLog(url=url, status="failed", error="Failed to fetch URL", duration_ms=duration_ms)
+        db.add(log_entry)
+        await db.flush()
+        return {"status": "failed", "error": "Failed to fetch URL", "url": url, "duration_ms": duration_ms}
+
+    # 2. Try structured extraction first
+    recipe_data = try_structured_extraction(html, url)
+    extraction_method = "schema" if recipe_data else ""
+
+    # 3. Fall back to AI extraction
+    if not recipe_data:
+        logger.info(f"Falling back to AI extraction for: {url}")
+        recipe_data = await extract_recipe_from_html(html, url)
+        extraction_method = "ai" if recipe_data else ""
+
+    if not recipe_data:
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_entry = ImportLog(url=url, status="failed", error="Could not extract recipe data", duration_ms=duration_ms)
+        db.add(log_entry)
+        await db.flush()
+        logger.error(f"Failed to extract recipe from: {url}")
+        return {"status": "failed", "error": "Could not extract recipe data", "url": url, "duration_ms": duration_ms}
+
+    # 4. Enrich tags via AI if we used structured extraction (which doesn't get tags)
+    if extraction_method == "schema":
+        recipe_data["tags"] = await enrich_recipe_tags(recipe_data)
+
+    # 5. Save to database
+    return await save_recipe_data(db, recipe_data, url, extraction_method, user_id, start_time)
