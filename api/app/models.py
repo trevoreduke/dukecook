@@ -202,7 +202,7 @@ class MealPlan(Base):
     id = Column(Integer, primary_key=True)
     date = Column(Date, nullable=False)
     meal_type = Column(String(20), default="dinner")
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
     status = Column(String(20), default="planned")  # planned, cooked, skipped
     notes = Column(Text, default="")
     created_at = Column(DateTime, server_default=func.now())
@@ -254,7 +254,7 @@ class SwipeCard(Base):
 
     id = Column(Integer, primary_key=True)
     session_id = Column(Integer, ForeignKey("swipe_sessions.id", ondelete="CASCADE"), nullable=False)
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     decision = Column(String(20), nullable=True)  # like, dislike, skip, superlike — null = not yet swiped
     swiped_at = Column(DateTime, nullable=True)
@@ -273,7 +273,7 @@ class SwipeMatch(Base):
 
     id = Column(Integer, primary_key=True)
     session_id = Column(Integer, ForeignKey("swipe_sessions.id", ondelete="CASCADE"), nullable=False)
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
     matched_at = Column(DateTime, server_default=func.now())
     planned_for_date = Column(Date, nullable=True)
 
@@ -324,7 +324,7 @@ class CookingHistory(Base):
     __tablename__ = "cooking_history"
 
     id = Column(Integer, primary_key=True)
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=False)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="SET NULL"), nullable=True)
     cooked_at = Column(Date, nullable=False)
     cooked_by = Column(JSON, default=list)  # [user_id, ...]
     notes = Column(Text, default="")
@@ -404,7 +404,7 @@ class ImportLog(Base):
     id = Column(Integer, primary_key=True)
     url = Column(Text, nullable=False)
     status = Column(String(20), default="pending")  # pending, success, failed
-    recipe_id = Column(Integer, ForeignKey("recipes.id"), nullable=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="SET NULL"), nullable=True)
     error = Column(Text, default="")
     raw_data = Column(JSON, nullable=True)
     extraction_method = Column(String(50), default="")  # schema, ai, manual

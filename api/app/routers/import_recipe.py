@@ -1,17 +1,26 @@
 """Recipe import routes."""
 
+import asyncio
 import logging
 import time
+import uuid
+import hashlib
+from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.config import get_settings
+from app.database import get_db, AsyncSessionLocal
 from app.schemas import ImportRequest, BulkImportRequest, ImportResult
 from app.services.recipe_importer import import_recipe_from_url, save_recipe_data
 from app.services.ai_extractor import extract_recipe_from_image, enrich_recipe_tags
 
 logger = logging.getLogger("dukecook.routers.import_recipe")
 router = APIRouter(prefix="/api/recipes", tags=["import"])
+
+# In-memory job tracker for background imports
+# {job_id: {"status": "pending|processing|success|failed", "result": {...}, ...}}
+_import_jobs: dict[str, dict] = {}
 
 
 @router.post("/import", response_model=ImportResult)
@@ -35,14 +44,11 @@ async def import_from_photo(
     user_id: int = Form(default=None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Import a recipe from a photo.
+    """Import a recipe from a photo — runs in background.
 
-    Accepts photos of cookbook pages, handwritten recipes, recipe cards,
-    magazine clippings, screenshots, etc. Uses Claude Vision to extract
-    all recipe data.
+    Immediately saves the photo and returns a job_id.
+    Poll /api/recipes/import/jobs/{job_id} for status.
     """
-    start_time = time.time()
-
     # Validate file type
     allowed_types = {
         "image/jpeg": "image/jpeg",
@@ -50,7 +56,7 @@ async def import_from_photo(
         "image/png": "image/png",
         "image/webp": "image/webp",
         "image/gif": "image/gif",
-        "image/heic": "image/jpeg",  # Will need conversion
+        "image/heic": "image/jpeg",
         "image/heif": "image/jpeg",
     }
 
@@ -64,23 +70,14 @@ async def import_from_photo(
 
     # Read image data
     image_data = await file.read()
-    if len(image_data) > 20 * 1024 * 1024:  # 20MB limit
+    if len(image_data) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large. Max 20MB.")
 
-    logger.info(f"Photo import: {file.filename} ({len(image_data)} bytes, {content_type})", extra={
-        "extra_data": {"filename": file.filename, "size": len(image_data), "content_type": content_type, "user_id": user_id}
-    })
-
-    # Save the original photo to disk so we can reference it later
-    from app.config import get_settings
-    from pathlib import Path
-    import hashlib
-
+    # Save the photo to disk immediately
     settings = get_settings()
     image_dir = Path(settings.image_dir)
     image_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save original upload with a hash-based filename
     file_hash = hashlib.md5(image_data).hexdigest()[:12]
     ext = ".jpg" if "jpeg" in media_type else (".png" if "png" in media_type else ".webp")
     orig_filename = f"photo_import_{file_hash}{ext}"
@@ -88,54 +85,118 @@ async def import_from_photo(
     orig_path.write_bytes(image_data)
     saved_image_path = f"/images/{orig_filename}"
 
-    logger.info(f"Saved original photo: {saved_image_path} ({len(image_data)} bytes)")
+    # Create a job and return immediately
+    job_id = uuid.uuid4().hex[:12]
+    filename = file.filename or "photo"
 
-    # Extract recipe via Claude Vision
-    recipe_data = await extract_recipe_from_image(image_data, media_type, file.filename or "photo")
-    if not recipe_data:
-        duration_ms = int((time.time() - start_time) * 1000)
-        return {
-            "status": "failed",
-            "url": f"photo:{file.filename}",
-            "recipe_id": None,
-            "recipe_title": None,
-            "error": "Could not extract recipe from image. Try a clearer photo.",
-            "extraction_method": "photo",
-            "duration_ms": duration_ms,
-        }
+    _import_jobs[job_id] = {
+        "status": "processing",
+        "filename": filename,
+        "thumbnail": saved_image_path,
+        "created_at": time.time(),
+        "result": None,
+    }
 
-    # Enrich tags if not present
-    if not recipe_data.get("tags"):
-        recipe_data["tags"] = await enrich_recipe_tags(recipe_data)
+    logger.info(f"Photo import queued: job={job_id}, file={filename} ({len(image_data)} bytes)")
 
-    # Use the saved photo as the recipe image (photo imports won't have an image_url)
-    if not recipe_data.get("image_url"):
-        recipe_data["_saved_image_path"] = saved_image_path
+    # Fire off the background task
+    asyncio.create_task(
+        _process_photo_import(job_id, image_data, media_type, filename, saved_image_path, user_id)
+    )
 
-    # Save to database using shared save logic
+    return {
+        "job_id": job_id,
+        "status": "processing",
+        "filename": filename,
+        "thumbnail": saved_image_path,
+    }
+
+
+async def _process_photo_import(
+    job_id: str,
+    image_data: bytes,
+    media_type: str,
+    filename: str,
+    saved_image_path: str,
+    user_id: int | None,
+):
+    """Background task: extract recipe from photo and save to DB."""
+    start_time = time.time()
+    logger.info(f"Processing photo import job={job_id}")
+
     try:
-        result = await save_recipe_data(
-            db,
-            recipe_data,
-            source_url=f"photo:{file.filename}",
-            extraction_method="photo",
-            user_id=user_id,
-            start_time=start_time,
-            source_image_path=saved_image_path,
-        )
-        return result
-    except Exception as e:
-        duration_ms = int((time.time() - start_time) * 1000)
-        logger.error(f"Failed to save photo-imported recipe: {e}", exc_info=True)
-        return {
-            "status": "failed",
-            "url": f"photo:{file.filename}",
-            "recipe_id": None,
-            "recipe_title": None,
-            "error": str(e),
-            "extraction_method": "photo",
-            "duration_ms": duration_ms,
+        # Extract recipe via Claude Vision
+        recipe_data = await extract_recipe_from_image(image_data, media_type, filename)
+        if not recipe_data:
+            _import_jobs[job_id] = {
+                **_import_jobs[job_id],
+                "status": "failed",
+                "result": {
+                    "status": "failed",
+                    "error": "Could not extract recipe from image. Try a clearer photo.",
+                    "duration_ms": int((time.time() - start_time) * 1000),
+                },
+            }
+            return
+
+        # Enrich tags
+        if not recipe_data.get("tags"):
+            recipe_data["tags"] = await enrich_recipe_tags(recipe_data)
+
+        # Save to database (need our own session since we're outside the request)
+        async with AsyncSessionLocal() as db:
+            result = await save_recipe_data(
+                db,
+                recipe_data,
+                source_url=f"photo:{filename}",
+                extraction_method="photo",
+                user_id=user_id,
+                start_time=start_time,
+                source_image_path=saved_image_path,
+            )
+            await db.commit()
+
+        _import_jobs[job_id] = {
+            **_import_jobs[job_id],
+            "status": "success" if result.get("status") == "success" else "failed",
+            "result": result,
         }
+        logger.info(f"Photo import job={job_id} completed: {result.get('recipe_title', '?')}")
+
+    except Exception as e:
+        logger.error(f"Photo import job={job_id} failed: {e}", exc_info=True)
+        _import_jobs[job_id] = {
+            **_import_jobs[job_id],
+            "status": "failed",
+            "result": {
+                "status": "failed",
+                "error": str(e),
+                "duration_ms": int((time.time() - start_time) * 1000),
+            },
+        }
+
+
+@router.get("/import/jobs/{job_id}")
+async def get_import_job(job_id: str):
+    """Check the status of a background import job."""
+    job = _import_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@router.get("/import/jobs")
+async def list_import_jobs():
+    """List all recent import jobs (last hour)."""
+    cutoff = time.time() - 3600
+    jobs = [
+        {"job_id": jid, **job}
+        for jid, job in _import_jobs.items()
+        if job.get("created_at", 0) > cutoff
+    ]
+    # Newest first
+    jobs.sort(key=lambda j: j.get("created_at", 0), reverse=True)
+    return jobs
 
 
 @router.post("/import/bulk", response_model=list[ImportResult])
