@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: dukecook-db
+    environment:
+      POSTGRES_DB: dukecook
+      POSTGRES_USER: dukecook
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dukecook_dev}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dukecook"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    container_name: dukecook-api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://dukecook:${DB_PASSWORD:-dukecook_dev}@db:5432/dukecook
+      DATABASE_URL_SYNC: postgresql://dukecook:${DB_PASSWORD:-dukecook_dev}@db:5432/dukecook
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GOOGLE_CALENDAR_CREDENTIALS: ${GOOGLE_CALENDAR_CREDENTIALS:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      IMAGE_DIR: /data/images
+    volumes:
+      - recipe-images:/data/images
+      - ./api/app:/app/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    build: ./ui
+    container_name: dukecook-ui
+    environment:
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://localhost:8080}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  recipe-images:

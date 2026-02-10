@@ -1,0 +1,211 @@
+'use client';
+
+import { useState, useEffect, useContext } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { getRecipe, deleteRecipe, createRating } from '@/lib/api';
+import { UserContext } from '@/app/layout';
+
+export default function RecipeDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { currentUser } = useContext(UserContext);
+  const [recipe, setRecipe] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [showRating, setShowRating] = useState(false);
+  const [ratingStars, setRatingStars] = useState(5);
+  const [wouldMakeAgain, setWouldMakeAgain] = useState(true);
+  const [ratingNotes, setRatingNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (params.id) {
+      getRecipe(Number(params.id)).then(setRecipe).catch(() => null).finally(() => setLoading(false));
+    }
+  }, [params.id]);
+
+  const handleDelete = async () => {
+    if (!confirm('Delete this recipe?')) return;
+    await deleteRecipe(Number(params.id));
+    router.push('/recipes');
+  };
+
+  const handleRate = async () => {
+    if (!currentUser) return;
+    setSubmitting(true);
+    try {
+      await createRating({
+        recipe_id: Number(params.id),
+        user_id: currentUser.id,
+        stars: ratingStars,
+        would_make_again: wouldMakeAgain,
+        notes: ratingNotes,
+      });
+      // Reload recipe to show new rating
+      const updated = await getRecipe(Number(params.id));
+      setRecipe(updated);
+      setShowRating(false);
+      setRatingNotes('');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) return <div className="text-center py-12 text-gray-400">Loading...</div>;
+  if (!recipe) return <div className="text-center py-12 text-gray-400">Recipe not found</div>;
+
+  return (
+    <div className="space-y-6 max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="card overflow-hidden">
+        {(recipe.image_url || recipe.image_path) && (
+          <div className="h-64 overflow-hidden">
+            <img src={recipe.image_path || recipe.image_url} alt={recipe.title} className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="p-6">
+          <h1 className="text-3xl font-bold mb-2">{recipe.title}</h1>
+          {recipe.description && <p className="text-gray-600 mb-3">{recipe.description}</p>}
+
+          <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
+            {recipe.cuisine && <span className="badge bg-brand-100 text-brand-700">{recipe.cuisine}</span>}
+            {recipe.prep_time_min && <span>🔪 Prep: {recipe.prep_time_min} min</span>}
+            {recipe.cook_time_min && <span>🔥 Cook: {recipe.cook_time_min} min</span>}
+            {recipe.total_time_min && <span>⏱ Total: {recipe.total_time_min} min</span>}
+            <span>🍽 Serves {recipe.servings}</span>
+            {recipe.difficulty && <span className="capitalize">📊 {recipe.difficulty}</span>}
+          </div>
+
+          {recipe.tags?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {recipe.tags.map((t: any) => (
+                <span key={t.id} className="badge bg-gray-100 text-gray-600">{t.name}</span>
+              ))}
+            </div>
+          )}
+
+          {recipe.source_url && (
+            <a href={recipe.source_url} target="_blank" rel="noopener noreferrer" className="text-sm text-brand-500 hover:underline">
+              📎 Original Recipe →
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-3">
+        <Link href={`/cook/${recipe.id}`} className="btn-primary flex-1 text-center">
+          👨‍🍳 Start Cooking
+        </Link>
+        <button onClick={() => setShowRating(!showRating)} className="btn-secondary">
+          ⭐ Rate
+        </button>
+        <button onClick={handleDelete} className="btn-danger">🗑</button>
+      </div>
+
+      {/* Rating Form */}
+      {showRating && (
+        <div className="card p-5">
+          <h3 className="font-semibold mb-3">Rate this recipe ({currentUser?.name})</h3>
+
+          <div className="star-rating flex gap-1 text-3xl mb-4">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button
+                key={s}
+                onClick={() => setRatingStars(s)}
+                className={`star ${s <= ratingStars ? 'active text-brand-500' : 'text-gray-300'}`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+
+          <label className="flex items-center gap-2 mb-3">
+            <input
+              type="checkbox"
+              checked={wouldMakeAgain}
+              onChange={(e) => setWouldMakeAgain(e.target.checked)}
+              className="rounded"
+            />
+            <span>Would make again</span>
+          </label>
+
+          <textarea
+            className="input mb-3"
+            placeholder="Notes (optional) — e.g., 'Added extra garlic, Michelle loved it'"
+            value={ratingNotes}
+            onChange={(e) => setRatingNotes(e.target.value)}
+            rows={2}
+          />
+
+          <button onClick={handleRate} disabled={submitting} className="btn-primary w-full">
+            {submitting ? 'Saving...' : 'Submit Rating'}
+          </button>
+        </div>
+      )}
+
+      {/* Ratings */}
+      {recipe.ratings?.length > 0 && (
+        <div className="card p-5">
+          <h3 className="font-semibold mb-3">Ratings</h3>
+          <div className="space-y-3">
+            {recipe.ratings.map((r: any) => (
+              <div key={r.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="text-2xl">
+                  {r.user_name === 'Trevor' ? '👨‍🍳' : '👩‍🍳'}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{r.user_name}</span>
+                    <span className="text-yellow-500">{'★'.repeat(r.stars)}{'☆'.repeat(5 - r.stars)}</span>
+                    {r.would_make_again && <span className="badge bg-green-100 text-green-700">Would make again ✓</span>}
+                  </div>
+                  {r.notes && <p className="text-sm text-gray-600 mt-1">{r.notes}</p>}
+                  {r.cooked_at && <p className="text-xs text-gray-400 mt-1">Cooked {r.cooked_at}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ingredients */}
+      <div className="card p-5">
+        <h3 className="font-semibold mb-3">Ingredients</h3>
+        <ul className="space-y-2">
+          {recipe.ingredients?.map((ing: any, i: number) => (
+            <li key={i} className="flex items-start gap-2">
+              <span className="text-brand-400 mt-1">•</span>
+              <span>{ing.raw_text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Steps */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold">Steps</h3>
+          <Link href={`/cook/${recipe.id}`} className="text-sm text-brand-500">Cook-along mode →</Link>
+        </div>
+        <ol className="space-y-4">
+          {recipe.steps?.map((step: any) => (
+            <li key={step.id} className="flex gap-3">
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-brand-500 text-white text-sm flex items-center justify-center font-medium">
+                {step.step_number}
+              </span>
+              <div className="flex-1">
+                <p>{step.instruction}</p>
+                {step.duration_minutes && (
+                  <span className="inline-flex items-center gap-1 mt-1 text-sm text-brand-600 bg-brand-50 px-2 py-0.5 rounded">
+                    ⏱ {step.duration_minutes} min {step.timer_label && `— ${step.timer_label}`}
+                  </span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
