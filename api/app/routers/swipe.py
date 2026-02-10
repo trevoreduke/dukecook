@@ -63,8 +63,9 @@ async def create_session(data: SwipeSessionCreate, db: AsyncSession = Depends(ge
     db.add(session)
     await db.flush()
 
-    # Create cards for both users
-    users_result = await db.execute(select(User))
+    # Create cards for the couple only (Trevor & Emily)
+    COUPLE_IDS = [1, 2]
+    users_result = await db.execute(select(User).where(User.id.in_(COUPLE_IDS)))
     users = users_result.scalars().all()
 
     for user in users:

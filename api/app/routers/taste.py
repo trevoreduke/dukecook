@@ -70,7 +70,9 @@ async def compare_profiles(db: AsyncSession = Depends(get_db)):
     """
     logger.info("Comparing taste profiles")
 
-    users_result = await db.execute(select(User).order_by(User.id))
+    # Compare only the couple (Trevor & Emily)
+    COUPLE_IDS = [1, 2]
+    users_result = await db.execute(select(User).where(User.id.in_(COUPLE_IDS)).order_by(User.id))
     users = users_result.scalars().all()
 
     if len(users) < 2:

@@ -98,9 +98,10 @@ async def seed_defaults():
         existing = result.scalars().all()
 
         if not existing:
-            logger.info("Seeding default users: Trevor & Emily")
+            logger.info("Seeding default users: Trevor, Emily & Carolina")
             db.add(User(name="Trevor", avatar_emoji="👨‍🍳"))
             db.add(User(name="Emily", avatar_emoji="👩‍🍳"))
+            db.add(User(name="Carolina", avatar_emoji="🌸"))
             await db.commit()
 
         # Create sample dietary rules if none exist
