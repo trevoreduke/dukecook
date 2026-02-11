@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getRecipes, getAllTags } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 export default function RecipesPage() {
   const [recipes, setRecipes] = useState<any[]>([]);
@@ -11,6 +12,8 @@ export default function RecipesPage() {
   const [tag, setTag] = useState('');
   const [tags, setTags] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
+  const { t } = useI18n();
 
   const loadRecipes = async () => {
     setLoading(true);
@@ -18,12 +21,13 @@ export default function RecipesPage() {
     if (search) params.search = search;
     if (cuisine) params.cuisine = cuisine;
     if (tag) params.tag = tag;
+    if (showArchived) params.archived = 'true';
     const data = await getRecipes(params).catch(() => []);
     setRecipes(data);
     setLoading(false);
   };
 
-  useEffect(() => { loadRecipes(); }, [search, cuisine, tag]);
+  useEffect(() => { loadRecipes(); }, [search, cuisine, tag, showArchived]);
   useEffect(() => { getAllTags().then(setTags).catch(() => {}); }, []);
 
   const cuisines = [...new Set(tags.filter(t => t.type === 'cuisine').map(t => t.name))];
@@ -53,6 +57,16 @@ export default function RecipesPage() {
             <option value="">All Tags</option>
             {proteins.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              showArchived 
+                ? 'bg-amber-100 text-amber-700 ring-2 ring-amber-300' 
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            📦 {showArchived ? t('recipes.hide_archived') : t('recipes.show_archived')}
+          </button>
         </div>
       </div>
 
@@ -69,7 +83,7 @@ export default function RecipesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {recipes.map((r) => (
-            <Link key={r.id} href={`/recipes/${r.id}`} className="card hover:shadow-md transition-shadow">
+            <Link key={r.id} href={`/recipes/${r.id}`} className={`card hover:shadow-md transition-shadow ${r.archived ? 'opacity-60' : ''}`}>
               {/* Image */}
               <div className="h-40 bg-brand-100 flex items-center justify-center overflow-hidden">
                 {r.image_url || r.image_path ? (
@@ -85,7 +99,10 @@ export default function RecipesPage() {
 
               {/* Info */}
               <div className="p-4">
-                <h3 className="font-semibold text-lg mb-1 line-clamp-2">{r.title}</h3>
+                <h3 className="font-semibold text-lg mb-1 line-clamp-2">
+                  {r.archived && <span className="text-amber-500 mr-1">📦</span>}
+                  {r.title}
+                </h3>
 
                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
                   {r.cuisine && <span className="badge bg-brand-100 text-brand-700">{r.cuisine}</span>}

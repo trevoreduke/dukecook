@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart } from '@/lib/api';
+import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart, archiveRecipe, unarchiveRecipe } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 import { useI18n } from '@/lib/i18n';
 
@@ -161,8 +161,36 @@ export default function RecipeDetailPage() {
             {showOriginal ? '📋 Formatted' : '📄 Original'}
           </button>
         )}
+        <button
+          onClick={async () => {
+            if (recipe.archived) {
+              await unarchiveRecipe(recipe.id);
+              setRecipe({ ...recipe, archived: false });
+            } else {
+              await archiveRecipe(recipe.id);
+              setRecipe({ ...recipe, archived: true });
+            }
+          }}
+          className={recipe.archived ? 'btn-secondary ring-2 ring-amber-300' : 'btn-secondary'}
+          title={recipe.archived ? (t('recipe.unarchive', 'Unarchive')) : (t('recipe.archive', 'Archive'))}
+        >
+          {recipe.archived ? '📂' : '📦'}
+        </button>
         <button onClick={handleDelete} className="btn-danger">🗑</button>
       </div>
+
+      {/* Archived banner */}
+      {recipe.archived && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-amber-800 text-sm flex items-center gap-2">
+          📦 {t('recipe.archived_msg', 'This recipe is archived and hidden from your main list.')}
+          <button
+            onClick={async () => { await unarchiveRecipe(recipe.id); setRecipe({ ...recipe, archived: false }); }}
+            className="ml-auto text-amber-600 hover:text-amber-800 font-medium"
+          >
+            {t('recipe.unarchive', 'Unarchive')}
+          </button>
+        </div>
+      )}
 
       {/* 🛒 Kroger One-Click Cart */}
       {recipe.ingredients?.length > 0 && (
@@ -350,6 +378,51 @@ export default function RecipeDetailPage() {
           )}
         </div>
       )}
+
+      {/* 🥑 Whole Foods / Amazon Fresh */}
+      {recipe.ingredients?.length > 0 && (() => {
+        const ingredients = recipe.ingredients
+          .map((i: any) => i.ingredient_name || '')
+          .filter((n: string) => n && n.length > 1);
+
+        if (ingredients.length === 0) return null;
+
+        const ASSOCIATE_TAG = 'trevordukeco-20';
+
+        return (
+          <div className="card p-5 bg-green-50 border-green-200">
+            <h3 className="font-semibold text-green-800 mb-3">
+              🥑 {t('wholefoods.title', 'Whole Foods')}
+            </h3>
+            <div className="space-y-1.5 mb-3 max-h-64 overflow-y-auto">
+              {ingredients.map((name: string, idx: number) => (
+                <a
+                  key={idx}
+                  href={`https://www.amazon.com/s?k=${encodeURIComponent(name)}&i=wholefoods&tag=${ASSOCIATE_TAG}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-green-200 hover:bg-green-100 transition-colors text-sm"
+                >
+                  <span className="text-green-500">🔍</span>
+                  <span className="text-gray-700">{name}</span>
+                  <span className="ml-auto text-green-400 text-xs">→</span>
+                </a>
+              ))}
+            </div>
+            <a
+              href={`https://www.amazon.com/s?k=${encodeURIComponent(ingredients.slice(0, 3).join(' '))}&i=wholefoods&tag=${ASSOCIATE_TAG}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              🥑 {t('wholefoods.open', 'Open Whole Foods')}
+            </a>
+            <p className="text-xs text-green-600 mt-2">
+              {t('wholefoods.desc', 'Search each ingredient on Amazon Whole Foods for delivery')}
+            </p>
+          </div>
+        );
+      })()}
 
       {/* Original Recipe View */}
       {showOriginal && (

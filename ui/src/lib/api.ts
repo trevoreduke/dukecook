@@ -37,6 +37,8 @@ export const createRecipe = (data: any) => request<any>('/api/recipes', { method
 export const updateRecipe = (id: number, data: any) => request<any>(`/api/recipes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteRecipe = (id: number) => request<void>(`/api/recipes/${id}`, { method: 'DELETE' });
 export const getAllTags = () => request<any[]>('/api/recipes/tags/all');
+export const archiveRecipe = (id: number) => request<any>(`/api/recipes/${id}/archive`, { method: 'POST' });
+export const unarchiveRecipe = (id: number) => request<any>(`/api/recipes/${id}/unarchive`, { method: 'POST' });
 
 // ---------- Import ----------
 export const importRecipe = (url: string, userId?: number) =>

@@ -21,6 +21,7 @@ async def list_recipes(
     cuisine: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
     difficulty: Optional[str] = Query(None),
+    archived: bool = Query(False, description="Include archived recipes"),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     db: AsyncSession = Depends(get_db),
@@ -32,6 +33,9 @@ async def list_recipes(
     )
 
     query = select(Recipe)
+
+    if not archived:
+        query = query.where(Recipe.archived == False)
 
     if search:
         query = query.where(Recipe.title.ilike(f"%{search}%"))
@@ -235,6 +239,32 @@ async def delete_recipe(recipe_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(recipe)
     await db.flush()
     logger.info(f"Recipe deleted: {recipe.title} (id={recipe_id})")
+
+
+@router.post("/{recipe_id}/archive")
+async def archive_recipe(recipe_id: int, db: AsyncSession = Depends(get_db)):
+    """Archive a recipe (hide from main list)."""
+    result = await db.execute(select(Recipe).where(Recipe.id == recipe_id))
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    recipe.archived = True
+    await db.flush()
+    logger.info(f"Recipe archived: {recipe.title} (id={recipe_id})")
+    return {"id": recipe_id, "archived": True}
+
+
+@router.post("/{recipe_id}/unarchive")
+async def unarchive_recipe(recipe_id: int, db: AsyncSession = Depends(get_db)):
+    """Unarchive a recipe (restore to main list)."""
+    result = await db.execute(select(Recipe).where(Recipe.id == recipe_id))
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    recipe.archived = False
+    await db.flush()
+    logger.info(f"Recipe unarchived: {recipe.title} (id={recipe_id})")
+    return {"id": recipe_id, "archived": False}
 
 
 @router.get("/tags/all", response_model=list[TagOut])

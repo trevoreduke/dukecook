@@ -64,6 +64,16 @@ const translations: Record<string, Record<Locale, string>> = {
   'recipe.add_notes': { en: 'Add notes...', es: 'Agregar notas...' },
   'recipe.submit_rating': { en: 'Submit Rating', es: 'Enviar Calificación' },
   'recipe.past_ratings': { en: 'Past Ratings', es: 'Calificaciones Anteriores' },
+  'recipe.archive': { en: 'Archive', es: 'Archivar' },
+  'recipe.unarchive': { en: 'Unarchive', es: 'Desarchivar' },
+  'recipe.archived_msg': { en: 'This recipe is archived and hidden from your main list.', es: 'Esta receta está archivada y oculta de tu lista principal.' },
+  'recipes.show_archived': { en: 'Show Archived', es: 'Ver Archivadas' },
+  'recipes.hide_archived': { en: 'Hide Archived', es: 'Ocultar Archivadas' },
+
+  // ── Whole Foods ──
+  'wholefoods.title': { en: 'Whole Foods', es: 'Whole Foods' },
+  'wholefoods.open': { en: 'Open Whole Foods', es: 'Abrir Whole Foods' },
+  'wholefoods.desc': { en: 'Search each ingredient on Amazon Whole Foods for delivery', es: 'Busca cada ingrediente en Amazon Whole Foods para entrega' },
 
   // ── Kroger ──
   'kroger.title': { en: 'Kroger', es: 'Kroger' },

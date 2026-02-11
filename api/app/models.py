@@ -84,6 +84,7 @@ class Recipe(Base):
     difficulty = Column(String(20), default="medium")
     notes = Column(Text, default="")  # Tips, variations, author notes
     original_text = Column(Text, default="")  # Full original recipe text for reference
+    archived = Column(Boolean, default=False)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
