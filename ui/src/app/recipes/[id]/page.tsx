@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
+import { useI18n } from '@/lib/i18n';
 
 // Build schema.org Recipe JSON-LD for Instacart widget + SEO
 function buildRecipeSchema(recipe: any): object {
@@ -38,6 +39,7 @@ export default function RecipeDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { currentUser } = useContext(UserContext);
+  const { t } = useI18n();
   const [recipe, setRecipe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showRating, setShowRating] = useState(false);
@@ -166,10 +168,10 @@ export default function RecipeDetailPage() {
       {recipe.ingredients?.length > 0 && (
         <div className="card p-5 bg-blue-50 border-blue-200">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-blue-800">🛒 Kroger</h3>
+            <h3 className="font-semibold text-blue-800">🛒 {t('kroger.title')}</h3>
             {krogerStatus?.connected && (
               <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
-                ✓ {krogerStatus.first_name || krogerStatus.email || 'Connected'}
+                ✓ {krogerStatus.first_name || krogerStatus.email || t('kroger.connected')}
               </span>
             )}
           </div>
@@ -177,12 +179,12 @@ export default function RecipeDetailPage() {
           {/* Not connected — show connect button */}
           {krogerStatus && !krogerStatus.connected && (
             <div className="text-center py-3">
-              <p className="text-sm text-gray-600 mb-3">Connect your Kroger account to add ingredients to your cart with one tap.</p>
+              <p className="text-sm text-gray-600 mb-3">{t('kroger.connect_desc')}</p>
               <a
                 href={`/api/kroger/connect?user_id=${currentUser?.id || 1}`}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
               >
-                🔗 Connect Kroger Account
+                {t('kroger.connect_btn')}
               </a>
             </div>
           )}
@@ -237,9 +239,9 @@ export default function RecipeDetailPage() {
                   className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed text-lg"
                 >
                   {krogerLoading ? (
-                    <>⏳ Adding to cart...</>
+                    <>{t('kroger.adding')}</>
                   ) : (
-                    <>🛒 Add All to Kroger Cart</>
+                    <>{t('kroger.add_all')}</>
                   )}
                 </button>
                 <button
@@ -263,7 +265,7 @@ export default function RecipeDetailPage() {
                 </button>
               </div>
               <p className="text-xs text-blue-600 mt-2">
-                Auto-matches ingredients → adds to your Kroger cart for pickup/delivery
+                {t('kroger.auto_match')}
               </p>
             </div>
           )}
@@ -273,7 +275,7 @@ export default function RecipeDetailPage() {
             <div className="py-2">
               <div className="flex items-center justify-between mb-3">
                 <p className="font-medium text-blue-800">
-                  {krogerCartResult.added} items · ~${krogerCartResult.estimated_cost?.toFixed(2)}
+                  {krogerCartResult.added} {t('kroger.items')} · ~${krogerCartResult.estimated_cost?.toFixed(2)}
                 </p>
                 <a
                   href="https://www.kroger.com/cart"
@@ -281,7 +283,7 @@ export default function RecipeDetailPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
                 >
-                  🛒 Open Cart
+                  {t('kroger.open_cart_short')}
                 </a>
               </div>
 
@@ -332,7 +334,7 @@ export default function RecipeDetailPage() {
                   rel="noopener noreferrer"
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                 >
-                  🛒 Open Kroger Cart
+                  {t('kroger.open_cart')}
                 </a>
                 <button
                   onClick={() => setKrogerCartResult(null)}
@@ -342,7 +344,7 @@ export default function RecipeDetailPage() {
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-2 text-center">
-                Tap any item to view on Kroger · Items also sent to your Kroger cart via API
+                {t('kroger.tap_item')}
               </p>
             </div>
           )}
