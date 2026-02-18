@@ -1,10 +1,59 @@
 'use client';
 
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { getWeekPlan, getRecipes, addToPlan, deletePlan, updatePlan, suggestMeals, addCalendarEvent, deleteCalendarEvent } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 import Link from 'next/link';
 import { format, addDays, subDays, startOfWeek } from 'date-fns';
+
+function RecipeCombobox({ recipes, value, onChange }: { recipes: any[]; value: number | null; onChange: (id: number | null) => void }) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selectedTitle = recipes.find(r => r.id === value)?.title || '';
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = recipes.filter(r =>
+    r.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div ref={ref} className="relative flex-1">
+      <input
+        className="input w-full"
+        placeholder="Search recipes..."
+        value={open ? search : selectedTitle}
+        onChange={(e) => { setSearch(e.target.value); onChange(null); }}
+        onFocus={() => { setOpen(true); setSearch(''); }}
+      />
+      {open && (
+        <ul className="absolute z-50 mt-1 w-full max-h-60 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-gray-400">No recipes found</li>
+          ) : (
+            filtered.map(r => (
+              <li
+                key={r.id}
+                className="px-3 py-2 text-sm cursor-pointer hover:bg-brand-50 hover:text-brand-700"
+                onMouseDown={() => { onChange(r.id); setSearch(r.title); setOpen(false); }}
+              >
+                {r.title}
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function PlannerPage() {
   const { currentUser } = useContext(UserContext);
@@ -219,16 +268,11 @@ export default function PlannerPage() {
                 <div className="flex gap-2">
                   {showAdd === day.date ? (
                     <div className="flex gap-2 flex-1">
-                      <select
-                        className="input flex-1"
-                        value={selectedRecipe || ''}
-                        onChange={(e) => setSelectedRecipe(Number(e.target.value))}
-                      >
-                        <option value="">Pick a recipe...</option>
-                        {recipes.map(r => (
-                          <option key={r.id} value={r.id}>{r.title}</option>
-                        ))}
-                      </select>
+                      <RecipeCombobox
+                        recipes={recipes}
+                        value={selectedRecipe}
+                        onChange={setSelectedRecipe}
+                      />
                       <button onClick={() => handleAddMeal(day.date)} disabled={!selectedRecipe} className="btn-primary text-sm">
                         Add
                       </button>
