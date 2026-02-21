@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart, archiveRecipe, unarchiveRecipe } from '@/lib/api';
+import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart, archiveRecipe, unarchiveRecipe, updateRecipe, uploadRecipePhoto } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 import { useI18n } from '@/lib/i18n';
 
@@ -48,6 +48,10 @@ export default function RecipeDetailPage() {
   const [ratingNotes, setRatingNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [savingTitle, setSavingTitle] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [krogerStatus, setKrogerStatus] = useState<any>(null);
   const [krogerMatch, setKrogerMatch] = useState<any>(null);
   const [krogerLoading, setKrogerLoading] = useState(false);
@@ -92,6 +96,37 @@ export default function RecipeDetailPage() {
     }
   };
 
+  const handleSaveTitle = async () => {
+    const newTitle = editTitle.trim();
+    if (!newTitle || newTitle === recipe.title) {
+      setEditingTitle(false);
+      return;
+    }
+    setSavingTitle(true);
+    try {
+      await updateRecipe(Number(params.id), { title: newTitle });
+      setRecipe({ ...recipe, title: newTitle });
+      setEditingTitle(false);
+    } catch {
+      alert('Failed to rename recipe.');
+    }
+    setSavingTitle(false);
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const result = await uploadRecipePhoto(Number(params.id), file);
+      setRecipe({ ...recipe, image_path: result.image_path });
+    } catch {
+      alert('Failed to upload photo.');
+    }
+    setUploadingPhoto(false);
+    e.target.value = '';  // Reset so same file can be re-selected
+  };
+
   if (loading) return <div className="text-center py-12 text-gray-400">Loading...</div>;
   if (!recipe) return <div className="text-center py-12 text-gray-400">Recipe not found</div>;
 
@@ -105,13 +140,46 @@ export default function RecipeDetailPage() {
 
       {/* Header */}
       <div className="card overflow-hidden">
-        {(recipe.image_url || recipe.image_path) && (
-          <div className="h-64 overflow-hidden">
+        {(recipe.image_url || recipe.image_path) ? (
+          <div className="h-64 overflow-hidden relative group">
             <img src={recipe.image_path || recipe.image_url} alt={recipe.title} className="w-full h-full object-cover" />
+            <label className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 text-white text-xs px-3 py-1.5 rounded-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+              {uploadingPhoto ? 'Uploading...' : 'Replace Photo'}
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+            </label>
           </div>
+        ) : (
+          <label className="h-40 bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors">
+            <span className="text-3xl mb-1">{uploadingPhoto ? '...' : '📷'}</span>
+            <span className="text-sm text-gray-400">{uploadingPhoto ? 'Uploading...' : 'Add a photo'}</span>
+            <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+          </label>
         )}
         <div className="p-6">
-          <h1 className="text-3xl font-bold mb-2">{recipe.title}</h1>
+          {editingTitle ? (
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                className="input text-2xl font-bold flex-1"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveTitle(); if (e.key === 'Escape') setEditingTitle(false); }}
+                autoFocus
+                disabled={savingTitle}
+              />
+              <button onClick={handleSaveTitle} disabled={savingTitle} className="btn-primary text-sm px-3 py-1">
+                {savingTitle ? '...' : 'Save'}
+              </button>
+              <button onClick={() => setEditingTitle(false)} className="btn-secondary text-sm px-3 py-1">Cancel</button>
+            </div>
+          ) : (
+            <h1
+              className="text-3xl font-bold mb-2 cursor-pointer hover:text-brand-600 transition-colors"
+              onClick={() => { setEditTitle(recipe.title); setEditingTitle(true); }}
+              title="Click to rename"
+            >
+              {recipe.title}
+            </h1>
+          )}
           {recipe.description && <p className="text-gray-600 mb-3">{recipe.description}</p>}
 
           <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { importRecipe, bulkImport, importFromPhoto } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
@@ -328,8 +328,52 @@ function BulkImport({ currentUser, loading, setLoading, results, setResults }: a
 
 // ---------- Results ----------
 function ImportResults({ results, router }: { results: any[]; router: any }) {
+  const successRef = useRef<HTMLDivElement>(null);
+  const hasSuccess = results.some(r => r.status === 'success');
+
+  useEffect(() => {
+    if (hasSuccess && successRef.current) {
+      successRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [hasSuccess]);
+
   if (!results.length) return null;
 
+  // Single success — show prominent banner
+  const singleSuccess = results.length === 1 && results[0].status === 'success' ? results[0] : null;
+  if (singleSuccess) {
+    return (
+      <div ref={successRef} className="card p-6 bg-green-50 border-2 border-green-300 text-center space-y-3">
+        <div className="text-4xl">🎉</div>
+        <h3 className="text-xl font-bold text-green-800">Recipe Imported!</h3>
+        <p className="text-green-700 font-medium text-lg">{singleSuccess.recipe_title}</p>
+        <div className="flex items-center justify-center gap-2 text-sm text-green-600">
+          {singleSuccess.extraction_method && (
+            <span className={`px-2 py-0.5 rounded-full ${
+              singleSuccess.extraction_method === 'photo'
+                ? 'bg-purple-100 text-purple-700'
+                : singleSuccess.extraction_method === 'ai'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              {singleSuccess.extraction_method === 'photo' ? '📸 photo' : singleSuccess.extraction_method}
+            </span>
+          )}
+          {singleSuccess.duration_ms && (
+            <span className="text-green-500">{(singleSuccess.duration_ms / 1000).toFixed(1)}s</span>
+          )}
+        </div>
+        <button
+          onClick={() => router.push(`/recipes/${singleSuccess.recipe_id}`)}
+          className="btn-primary px-8 py-3 text-base mt-2"
+        >
+          View Recipe →
+        </button>
+      </div>
+    );
+  }
+
+  // Mixed/multiple results or errors
   return (
     <div className="card p-5">
       <h3 className="font-semibold mb-3">Import Results</h3>
@@ -337,6 +381,7 @@ function ImportResults({ results, router }: { results: any[]; router: any }) {
         {results.map((r, i) => (
           <div
             key={i}
+            ref={i === 0 && hasSuccess ? successRef : undefined}
             className={`p-3 rounded-lg ${r.status === 'success' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}
           >
             <div className="flex items-center gap-2 flex-wrap">

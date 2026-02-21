@@ -3,6 +3,7 @@
 import './globals.css';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { getUsers } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 import { I18nProvider, LanguageToggle, useI18n } from '@/lib/i18n';
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/planner', label: '📅', titleKey: 'nav.planner' },
   { href: '/swipe', label: '🔥', titleKey: 'nav.swipe' },
   { href: '/shopping', label: '🛒', titleKey: 'nav.shopping' },
+  { href: '/menus', label: '🎉', titleKey: 'nav.menus' },
   { href: '/settings', label: '⚙️', titleKey: 'nav.settings' },
   { href: '/guide', label: '❓', titleKey: 'nav.guide' },
 ];
@@ -37,10 +39,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 
 function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useI18n();
+
+  // Public guest menu pages — skip the entire app shell
+  if (pathname.startsWith('/m/')) {
+    return <>{children}</>;
+  }
 
   useEffect(() => {
     getUsers().then((u) => {

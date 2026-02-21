@@ -39,6 +39,13 @@ export const deleteRecipe = (id: number) => request<void>(`/api/recipes/${id}`, 
 export const getAllTags = () => request<any[]>('/api/recipes/tags/all');
 export const archiveRecipe = (id: number) => request<any>(`/api/recipes/${id}/archive`, { method: 'POST' });
 export const unarchiveRecipe = (id: number) => request<any>(`/api/recipes/${id}/unarchive`, { method: 'POST' });
+export const uploadRecipePhoto = async (id: number, file: File): Promise<any> => {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`/api/recipes/${id}/photo`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  return res.json();
+};
 
 // ---------- Import ----------
 export const importRecipe = (url: string, userId?: number) =>
@@ -61,7 +68,23 @@ export const importFromPhoto = async (file: File, userId?: number): Promise<any>
     const error = await res.text();
     throw new Error(`API error ${res.status}: ${error}`);
   }
-  return res.json();
+
+  const job = await res.json();
+  if (!job.job_id) return job;
+
+  // Poll job status until complete (photo extraction takes 5-30s)
+  const maxAttempts = 60;
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const poll = await fetch(`/api/recipes/import/jobs/${job.job_id}`);
+    if (!poll.ok) continue;
+    const status = await poll.json();
+    if (status.status === 'success' || status.status === 'failed') {
+      return status.result || status;
+    }
+  }
+
+  throw new Error('Photo import timed out — check your recipes, it may still complete.');
 };
 
 // ---------- Planner ----------
@@ -136,3 +159,21 @@ export const getTasteProfile = (userId: number) => request<any>(`/api/taste/prof
 export const refreshTasteProfile = (userId: number) => request<any>(`/api/taste/profile/${userId}/refresh`, { method: 'POST' });
 export const getTasteInsights = (userId: number) => request<any>(`/api/taste/profile/${userId}/insights`);
 export const compareTastes = () => request<any>('/api/taste/compare');
+
+// ---------- Guest Menus ----------
+export const getGuestMenus = () => request<any[]>('/api/guest-menus');
+export const getGuestMenu = (id: number) => request<any>(`/api/guest-menus/${id}`);
+export const createGuestMenu = (data: any) => request<any>('/api/guest-menus', { method: 'POST', body: JSON.stringify(data) });
+export const updateGuestMenu = (id: number, data: any) => request<any>(`/api/guest-menus/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteGuestMenu = (id: number) => request<void>(`/api/guest-menus/${id}`, { method: 'DELETE' });
+export const regenerateTheme = (id: number, prompt?: string) => {
+  const qs = prompt ? `?new_prompt=${encodeURIComponent(prompt)}` : '';
+  return request<any>(`/api/guest-menus/${id}/regenerate-theme${qs}`, { method: 'POST' });
+};
+export const getMenuResults = (id: number) => request<any>(`/api/guest-menus/${id}/results`);
+export const checkSlug = (slug: string) => request<any>(`/api/guest-menus/check-slug/${encodeURIComponent(slug)}`);
+export const getPublicMenu = (slug: string) => request<any>(`/api/guest-menus/public/${slug}`);
+export const submitGuestVote = (slug: string, data: any) =>
+  request<any>(`/api/guest-menus/public/${slug}/vote`, { method: 'POST', body: JSON.stringify(data) });
+export const getGuestVotes = (slug: string, guestName: string) =>
+  request<any>(`/api/guest-menus/public/${slug}/votes/${encodeURIComponent(guestName)}`);

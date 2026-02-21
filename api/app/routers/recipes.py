@@ -1,11 +1,14 @@
 """Recipe CRUD routes."""
 
+import hashlib
 import logging
+from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 
+from app.config import get_settings
 from app.database import get_db
 from app.models import Recipe, RecipeIngredient, RecipeStep, Tag, RecipeTag, Rating, Ingredient
 from app.schemas import RecipeCreate, RecipeUpdate, RecipeSummary, RecipeDetail, TagOut, IngredientOut, StepOut, RatingOut
@@ -223,6 +226,7 @@ async def update_recipe(recipe_id: int, data: RecipeUpdate, db: AsyncSession = D
             db.add(rt)
 
     await db.flush()
+    await db.refresh(recipe)
     logger.info(f"Recipe updated: {recipe.title} (id={recipe.id})")
 
     return await _build_recipe_detail(db, recipe)
@@ -265,6 +269,46 @@ async def unarchive_recipe(recipe_id: int, db: AsyncSession = Depends(get_db)):
     await db.flush()
     logger.info(f"Recipe unarchived: {recipe.title} (id={recipe_id})")
     return {"id": recipe_id, "archived": False}
+
+
+@router.post("/{recipe_id}/photo")
+async def upload_recipe_photo(
+    recipe_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a photo for a recipe (e.g. after cooking)."""
+    result = await db.execute(select(Recipe).where(Recipe.id == recipe_id))
+    recipe = result.scalar_one_or_none()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    allowed_types = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"}
+    content_type = file.content_type or "image/jpeg"
+    if content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported image type: {content_type}")
+
+    image_data = await file.read()
+    if len(image_data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large. Max 20MB.")
+
+    settings = get_settings()
+    image_dir = Path(settings.image_dir)
+    image_dir.mkdir(parents=True, exist_ok=True)
+
+    file_hash = hashlib.md5(image_data).hexdigest()[:12]
+    ext = ".jpg" if "jpeg" in content_type or "jpg" in content_type or "heic" in content_type else (
+        ".png" if "png" in content_type else ".webp"
+    )
+    filename = f"recipe_{recipe_id}_{file_hash}{ext}"
+    filepath = image_dir / filename
+    filepath.write_bytes(image_data)
+
+    recipe.image_path = f"/images/{filename}"
+    await db.flush()
+
+    logger.info(f"Photo uploaded for recipe {recipe_id}: {filename}")
+    return {"image_path": recipe.image_path}
 
 
 @router.get("/tags/all", response_model=list[TagOut])

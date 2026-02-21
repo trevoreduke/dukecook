@@ -14,6 +14,7 @@ const translations: Record<string, Record<Locale, string>> = {
   'nav.shopping': { en: 'Shopping', es: 'Compras' },
   'nav.settings': { en: 'Settings', es: 'Ajustes' },
   'nav.guide': { en: 'Guide', es: 'Guía' },
+  'nav.menus': { en: 'Guest Menus', es: 'Menús de Invitados' },
   'who_cooking': { en: "Who's cooking?", es: '¿Quién cocina?' },
   'signed_in_as': { en: 'Signed in as', es: 'Conectado como' },
 

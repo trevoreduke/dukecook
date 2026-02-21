@@ -335,3 +335,85 @@ class CookAlongSession(BaseModel):
     steps: list[StepOut] = []
     active_timers: list[dict] = []
     servings_multiplier: float = 1.0
+
+
+# ---------- Guest Menus ----------
+
+class GuestMenuCreate(BaseModel):
+    title: str
+    slug: str = ""  # Auto-generated from title if empty
+    theme_prompt: str = ""
+    recipe_ids: list[int]
+
+class GuestMenuUpdate(BaseModel):
+    title: Optional[str] = None
+    slug: Optional[str] = None
+    active: Optional[bool] = None
+    recipe_ids: Optional[list[int]] = None
+    theme: Optional[dict] = None  # Partial theme overrides (merged into existing)
+    subtexts: Optional[dict[int, str]] = None  # {recipe_id: "subtext"}
+
+class GuestMenuItemOut(BaseModel):
+    recipe_id: int
+    title: str
+    description: str = ""
+    subtext: str = ""  # Admin-set optional subtext per menu item
+    image_path: str = ""
+    image_url: str = ""
+    prep_time_min: Optional[int] = None
+    cook_time_min: Optional[int] = None
+    servings: int = 4
+    cuisine: str = ""
+    difficulty: str = ""
+    notes: str = ""
+    ingredients: list[IngredientOut] = []
+    steps: list[StepOut] = []
+    model_config = {"from_attributes": True}
+
+class GuestMenuOut(BaseModel):
+    id: int
+    title: str
+    slug: str
+    theme_prompt: str = ""
+    theme: dict = {}
+    active: bool = True
+    created_by: Optional[int] = None
+    host_name: str = ""
+    items: list[GuestMenuItemOut] = []
+    vote_count: int = 0
+    guest_count: int = 0
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+class GuestMenuSummary(BaseModel):
+    id: int
+    title: str
+    slug: str
+    active: bool = True
+    item_count: int = 0
+    vote_count: int = 0
+    guest_count: int = 0
+    created_at: Optional[datetime] = None
+    model_config = {"from_attributes": True}
+
+class GuestVoteCreate(BaseModel):
+    guest_name: str = Field(min_length=1)
+    recipe_ids: list[int]
+    comments: dict[int, str] = {}  # {recipe_id: "comment text"}
+
+class VoterDetail(BaseModel):
+    guest_name: str
+    comment: str = ""
+
+class GuestVoteTally(BaseModel):
+    recipe_id: int
+    recipe_title: str
+    vote_count: int = 0
+    voters: list[str] = []
+    voter_details: list[VoterDetail] = []
+
+class GuestMenuResults(BaseModel):
+    menu_id: int
+    title: str
+    total_guests: int = 0
+    tally: list[GuestVoteTally] = []

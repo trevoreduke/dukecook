@@ -129,6 +129,55 @@ HTML:
         return None
 
 
+def _compress_image_for_api(image_data: bytes, media_type: str, max_base64_bytes: int = 4_800_000) -> tuple[bytes, str]:
+    """Resize/compress an image so its base64 encoding stays under the API limit.
+
+    Anthropic's API has a 5MB base64 limit. We target 4.8MB to leave headroom.
+    Returns (compressed_bytes, media_type).
+    """
+    import base64
+    from io import BytesIO
+    from PIL import Image
+
+    # Check if already small enough
+    encoded_size = len(image_data) * 4 // 3  # base64 inflation estimate
+    if encoded_size <= max_base64_bytes:
+        return image_data, media_type
+
+    img = Image.open(BytesIO(image_data))
+
+    # Convert RGBA/palette to RGB for JPEG output
+    if img.mode in ("RGBA", "P", "LA"):
+        img = img.convert("RGB")
+
+    # Iteratively reduce: first try quality reduction, then resize
+    for quality in (85, 70, 55):
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        data = buf.getvalue()
+        if len(data) * 4 // 3 <= max_base64_bytes:
+            logger.info(f"Compressed image: quality={quality}, {len(image_data)} → {len(data)} bytes")
+            return data, "image/jpeg"
+
+    # Still too big — resize down while maintaining aspect ratio
+    for scale in (0.75, 0.5, 0.35):
+        resized = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+        buf = BytesIO()
+        resized.save(buf, format="JPEG", quality=75, optimize=True)
+        data = buf.getvalue()
+        if len(data) * 4 // 3 <= max_base64_bytes:
+            logger.info(f"Resized image: scale={scale}, {img.width}x{img.height} → {resized.width}x{resized.height}, {len(image_data)} → {len(data)} bytes")
+            return data, "image/jpeg"
+
+    # Final fallback — aggressive resize
+    resized = img.resize((int(img.width * 0.25), int(img.height * 0.25)), Image.LANCZOS)
+    buf = BytesIO()
+    resized.save(buf, format="JPEG", quality=60, optimize=True)
+    data = buf.getvalue()
+    logger.warning(f"Aggressively resized image: {img.width}x{img.height} → {resized.width}x{resized.height}, {len(image_data)} → {len(data)} bytes")
+    return data, "image/jpeg"
+
+
 async def extract_recipe_from_image(image_data: bytes, media_type: str, filename: str = "") -> Optional[dict]:
     """Use Claude Vision to extract recipe data from a photo.
 
@@ -143,6 +192,9 @@ async def extract_recipe_from_image(image_data: bytes, media_type: str, filename
         return None
 
     import base64
+
+    # Compress image if needed to stay under Anthropic's 5MB base64 limit
+    image_data, media_type = _compress_image_for_api(image_data, media_type)
     encoded = base64.standard_b64encode(image_data).decode("utf-8")
 
     logger.info(f"AI extracting recipe from image: {filename} ({len(image_data)} bytes, {media_type})")

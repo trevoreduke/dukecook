@@ -1,6 +1,7 @@
 """Database engine, session, and base model configuration."""
 
 import logging
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from app.config import get_settings
@@ -46,6 +47,22 @@ async def init_db():
             TasteProfile, TastePreference, CookingHistory,
             ShoppingList, ShoppingItem, PantryStaple,
             CalendarEvent, ImportLog, KrogerToken,
+            GuestMenu, GuestMenuItem, GuestVote,
         )
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created successfully")
+
+    # Run each migration in its own transaction — PostgreSQL aborts the
+    # entire transaction on any error, so a "column already exists" failure
+    # would poison subsequent ALTER TABLEs if they share a transaction.
+    migrations = [
+        "ALTER TABLE guest_votes ADD COLUMN comment TEXT DEFAULT ''",
+        "ALTER TABLE guest_menu_items ADD COLUMN subtext TEXT DEFAULT ''",
+    ]
+    for sql in migrations:
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text(sql))
+                logger.info("Migration applied: %s", sql)
+        except Exception:
+            pass  # Column already exists
+    logger.info("Database tables ready")

@@ -429,3 +429,58 @@ class ImportLog(Base):
     extraction_method = Column(String(50), default="")  # schema, ai, manual
     duration_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+
+
+# ---------- Guest Menus ----------
+
+class GuestMenu(Base):
+    __tablename__ = "guest_menus"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(300), nullable=False)
+    slug = Column(String(200), unique=True, nullable=False, index=True)
+    theme_prompt = Column(Text, default="")
+    theme = Column(JSON, default=dict)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    items = relationship("GuestMenuItem", back_populates="menu", cascade="all, delete-orphan", order_by="GuestMenuItem.sort_order")
+    votes = relationship("GuestVote", back_populates="menu", cascade="all, delete-orphan")
+
+
+class GuestMenuItem(Base):
+    __tablename__ = "guest_menu_items"
+
+    id = Column(Integer, primary_key=True)
+    menu_id = Column(Integer, ForeignKey("guest_menus.id", ondelete="CASCADE"), nullable=False)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
+    sort_order = Column(Integer, default=0)
+    subtext = Column(Text, default="")
+
+    menu = relationship("GuestMenu", back_populates="items")
+    recipe = relationship("Recipe")
+
+    __table_args__ = (
+        UniqueConstraint("menu_id", "recipe_id", name="uq_guest_menu_item"),
+    )
+
+
+class GuestVote(Base):
+    __tablename__ = "guest_votes"
+
+    id = Column(Integer, primary_key=True)
+    menu_id = Column(Integer, ForeignKey("guest_menus.id", ondelete="CASCADE"), nullable=False)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
+    guest_name = Column(String(200), nullable=False)
+    comment = Column(Text, default="")
+    created_at = Column(DateTime, server_default=func.now())
+
+    menu = relationship("GuestMenu", back_populates="votes")
+    recipe = relationship("Recipe")
+
+    __table_args__ = (
+        UniqueConstraint("menu_id", "recipe_id", "guest_name", name="uq_guest_vote"),
+        Index("ix_guest_votes_menu", "menu_id"),
+    )

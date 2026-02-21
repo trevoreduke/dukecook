@@ -63,11 +63,11 @@ image_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/images", StaticFiles(directory=str(image_dir)), name="images")
 
 # Register routers
-from app.routers import recipes, import_recipe, planner, rules, swipe, ratings, cookalong, shopping, users, taste, homeassistant, kroger
+from app.routers import recipes, import_recipe, planner, rules, swipe, ratings, cookalong, shopping, users, taste, homeassistant, kroger, guest_menus
 
 app.include_router(users.router)
-app.include_router(recipes.router)
 app.include_router(import_recipe.router)
+app.include_router(recipes.router)
 app.include_router(planner.router)
 app.include_router(rules.router)
 app.include_router(swipe.router)
@@ -77,6 +77,7 @@ app.include_router(shopping.router)
 app.include_router(taste.router)
 app.include_router(homeassistant.router)
 app.include_router(kroger.router)
+app.include_router(guest_menus.router)
 
 
 @app.get("/api/health")
