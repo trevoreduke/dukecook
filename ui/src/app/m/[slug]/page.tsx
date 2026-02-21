@@ -326,12 +326,13 @@ export default function GuestMenuPage() {
                       background: 'transparent',
                       border: `1px solid ${accentColor}`,
                       color: accentColor,
-                      padding: '0.4rem 1.25rem',
+                      padding: '0.65rem 1.5rem',
                       fontFamily: headingFont,
-                      fontSize: '0.8rem',
+                      fontSize: '0.85rem',
                       letterSpacing: '0.1em',
                       textTransform: 'uppercase',
                       cursor: 'pointer',
+                      minHeight: '44px',
                     }}
                   >
                     Change Selections
@@ -422,10 +423,10 @@ export default function GuestMenuPage() {
                       key={item.recipe_id}
                       style={{
                         position: 'relative',
-                        padding: '0.7rem 0.75rem',
-                        margin: '0 -0.75rem',
-                        borderRadius: '4px',
-                        cursor: !hasVoted ? 'pointer' : 'default',
+                        padding: '1rem 0.85rem',
+                        margin: '0 -0.85rem',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
                         transition: 'all 0.25s ease',
                         background: isSelected
                           ? `${theme.checkbox_checked_bg || accentColor}12`
@@ -436,6 +437,7 @@ export default function GuestMenuPage() {
                       }}
                       onClick={() => {
                         if (!hasVoted) toggleRecipe(item.recipe_id);
+                        else setDetailRecipe(item);
                       }}
                     >
                       <div style={{
@@ -446,26 +448,26 @@ export default function GuestMenuPage() {
                         {/* Check indicator */}
                         <div
                           style={{
-                          width: '1.6rem',
-                          height: '1.6rem',
-                          borderRadius: '4px',
+                          width: '2rem',
+                          height: '2rem',
+                          borderRadius: '5px',
                           border: isSelected
                             ? `2px solid ${theme.checkbox_checked_bg || accentColor}`
                             : `1.5px solid ${theme.checkbox_border || mutedColor}`,
                           background: isSelected
                             ? (theme.checkbox_checked_bg || accentColor)
                             : 'transparent',
-                          display: 'flex',
+                          display: hasVoted ? 'none' : 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           flexShrink: 0,
                           transition: 'all 0.2s ease',
-                          marginTop: '0.15rem',
+                          marginTop: '0.1rem',
                         }}>
                           {isSelected && (
                             <span style={{
                               color: theme.checkbox_checked_color || '#fff',
-                              fontSize: '0.8rem',
+                              fontSize: '0.9rem',
                               fontWeight: 700,
                               lineHeight: 1,
                             }}>
@@ -477,7 +479,7 @@ export default function GuestMenuPage() {
                         {/* Dish name and description */}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{
-                            fontSize: '1.05rem',
+                            fontSize: '1.15rem',
                             fontWeight: 500,
                             color: textColor,
                             lineHeight: 1.4,
@@ -486,25 +488,36 @@ export default function GuestMenuPage() {
                           </div>
                           {item.description && (
                             <div style={{
-                              fontSize: '0.82rem',
+                              fontSize: '0.85rem',
                               color: mutedColor,
                               fontStyle: 'italic',
                               lineHeight: 1.4,
-                              marginTop: '0.15rem',
+                              marginTop: '0.2rem',
                             }}>
-                              {item.description.length > 100
-                                ? item.description.slice(0, 100) + '…'
+                              {item.description.length > 120
+                                ? item.description.slice(0, 120) + '…'
                                 : item.description}
                             </div>
                           )}
                           {item.subtext && (
                             <div style={{
-                              fontSize: '0.8rem',
+                              fontSize: '0.85rem',
                               color: accentColor,
                               lineHeight: 1.4,
-                              marginTop: '0.2rem',
+                              marginTop: '0.25rem',
                             }}>
                               {item.subtext}
+                            </div>
+                          )}
+                          {/* Post-vote: hint to tap for details */}
+                          {hasVoted && isSelected && (
+                            <div style={{
+                              fontSize: '0.75rem',
+                              color: accentColor,
+                              marginTop: '0.3rem',
+                              opacity: 0.7,
+                            }}>
+                              Tap to view recipe →
                             </div>
                           )}
                         </div>
@@ -517,12 +530,16 @@ export default function GuestMenuPage() {
                           }}
                           style={{
                             color: mutedColor,
-                            fontSize: '0.85rem',
+                            fontSize: '1.1rem',
                             cursor: 'pointer',
-                            opacity: 0.5,
-                            padding: '0.15rem 0.3rem',
+                            opacity: 0.6,
+                            padding: '0.5rem',
                             flexShrink: 0,
-                            marginTop: '0.1rem',
+                            minWidth: '44px',
+                            minHeight: '44px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                           }}
                           title="View recipe details"
                         >
