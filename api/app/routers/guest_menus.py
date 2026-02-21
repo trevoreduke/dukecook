@@ -2,13 +2,13 @@
 
 import re
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import GuestMenu, GuestMenuItem, GuestVote, Recipe, RecipeIngredient, RecipeStep, User
+from app.models import GuestMenu, GuestMenuItem, GuestVote, MenuView, Recipe, RecipeIngredient, RecipeStep, User
 from app.schemas import (
     GuestMenuCreate, GuestMenuUpdate, GuestMenuOut, GuestMenuSummary,
     GuestMenuItemOut, GuestVoteCreate, GuestMenuResults, GuestVoteTally,
@@ -513,3 +513,78 @@ async def get_guest_votes(
     comments = {v.recipe_id: v.comment for v in vote_rows if v.comment}
 
     return {"guest_name": guest_name, "recipe_ids": recipe_ids, "comments": comments}
+
+
+@router.post("/public/{slug}/view")
+async def track_menu_view(
+    slug: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Track a page view for analytics. Fire-and-forget from the client."""
+    result = await db.execute(
+        select(GuestMenu.id).where(GuestMenu.slug == slug)
+    )
+    menu_id = result.scalar_one_or_none()
+    if not menu_id:
+        return {"ok": True}  # Don't error on tracking — just silently skip
+
+    # Get IP from X-Forwarded-For (nginx) or direct connection
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "")
+
+    db.add(MenuView(
+        menu_id=menu_id,
+        ip_address=ip,
+        user_agent=request.headers.get("user-agent", "")[:500],
+        referrer=request.headers.get("referer", "")[:500],
+    ))
+    return {"ok": True}
+
+
+@router.get("/{menu_id}/views")
+async def get_menu_views(
+    menu_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get view analytics for a menu."""
+    result = await db.execute(select(GuestMenu).where(GuestMenu.id == menu_id))
+    menu = result.scalar_one_or_none()
+    if not menu:
+        raise HTTPException(status_code=404, detail="Menu not found")
+
+    # Total views
+    total = await db.scalar(
+        select(func.count(MenuView.id)).where(MenuView.menu_id == menu_id)
+    ) or 0
+
+    # Unique IPs
+    unique_ips = await db.scalar(
+        select(func.count(func.distinct(MenuView.ip_address)))
+        .where(MenuView.menu_id == menu_id)
+        .where(MenuView.ip_address != "")
+    ) or 0
+
+    # Recent views with details
+    recent_result = await db.execute(
+        select(MenuView)
+        .where(MenuView.menu_id == menu_id)
+        .order_by(MenuView.viewed_at.desc())
+        .limit(50)
+    )
+    recent = recent_result.scalars().all()
+
+    return {
+        "menu_id": menu_id,
+        "total_views": total,
+        "unique_visitors": unique_ips,
+        "views": [
+            {
+                "ip": v.ip_address,
+                "user_agent": v.user_agent,
+                "referrer": v.referrer,
+                "viewed_at": v.viewed_at.isoformat() if v.viewed_at else None,
+            }
+            for v in recent
+        ],
+    }

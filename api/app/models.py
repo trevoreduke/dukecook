@@ -484,3 +484,18 @@ class GuestVote(Base):
         UniqueConstraint("menu_id", "recipe_id", "guest_name", name="uq_guest_vote"),
         Index("ix_guest_votes_menu", "menu_id"),
     )
+
+
+class MenuView(Base):
+    __tablename__ = "menu_views"
+
+    id = Column(Integer, primary_key=True)
+    menu_id = Column(Integer, ForeignKey("guest_menus.id", ondelete="CASCADE"), nullable=False)
+    ip_address = Column(String(45), default="")
+    user_agent = Column(Text, default="")
+    referrer = Column(Text, default="")
+    viewed_at = Column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_menu_views_menu", "menu_id"),
+    )

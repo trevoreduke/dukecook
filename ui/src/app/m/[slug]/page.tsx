@@ -28,6 +28,8 @@ export default function GuestMenuPage() {
     getPublicMenu(slug)
       .then((data) => {
         setMenu(data);
+        // Track page view (fire-and-forget)
+        fetch(`/api/guest-menus/public/${slug}/view`, { method: 'POST' }).catch(() => {});
         const savedName = localStorage.getItem(`guestmenu_${slug}_name`);
         if (savedName) {
           setGuestName(savedName);

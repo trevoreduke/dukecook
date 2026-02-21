@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getGuestMenu, updateGuestMenu, deleteGuestMenu, regenerateTheme, getMenuResults, getRecipes } from '@/lib/api';
+import { getGuestMenu, updateGuestMenu, deleteGuestMenu, regenerateTheme, getMenuResults, getRecipes, getMenuViews } from '@/lib/api';
 
 export default function MenuDetailPage() {
   const params = useParams();
@@ -12,6 +12,7 @@ export default function MenuDetailPage() {
 
   const [menu, setMenu] = useState<any>(null);
   const [results, setResults] = useState<any>(null);
+  const [views, setViews] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -37,12 +38,14 @@ export default function MenuDetailPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [menuData, resultsData] = await Promise.all([
+      const [menuData, resultsData, viewsData] = await Promise.all([
         getGuestMenu(menuId),
         getMenuResults(menuId),
+        getMenuViews(menuId).catch(() => null),
       ]);
       setMenu(menuData);
       setResults(resultsData);
+      setViews(viewsData);
       setTitle(menuData.title);
       setSlug(menuData.slug);
       setActive(menuData.active);
@@ -183,6 +186,59 @@ export default function MenuDetailPage() {
           Copy Link
         </button>
       </div>
+
+      {/* Page Views */}
+      {views && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-lg">Page Views</h2>
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-gray-500">{views.total_views} total view{views.total_views !== 1 ? 's' : ''}</span>
+              <span className="text-gray-500">{views.unique_visitors} unique visitor{views.unique_visitors !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+          {views.views?.length > 0 && (
+            <div className="max-h-48 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                    <th className="py-1 pr-3">Time</th>
+                    <th className="py-1 pr-3">IP</th>
+                    <th className="py-1 pr-3">Device</th>
+                    <th className="py-1">Referrer</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {views.views.map((v: any, i: number) => {
+                    const ua = v.user_agent || '';
+                    let device = 'Unknown';
+                    if (/iPhone/i.test(ua)) device = 'iPhone';
+                    else if (/iPad/i.test(ua)) device = 'iPad';
+                    else if (/Android/i.test(ua)) device = 'Android';
+                    else if (/Mac/i.test(ua)) device = 'Mac';
+                    else if (/Windows/i.test(ua)) device = 'Windows';
+                    else if (/Linux/i.test(ua)) device = 'Linux';
+                    if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) device += ' Safari';
+                    else if (/Chrome/i.test(ua)) device += ' Chrome';
+                    else if (/Firefox/i.test(ua)) device += ' Firefox';
+
+                    return (
+                      <tr key={i} className="text-gray-600">
+                        <td className="py-1 pr-3 whitespace-nowrap">
+                          {v.viewed_at ? new Date(v.viewed_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                        </td>
+                        <td className="py-1 pr-3 font-mono">{v.ip}</td>
+                        <td className="py-1 pr-3">{device}</td>
+                        <td className="py-1 truncate max-w-[200px]" title={v.referrer}>{v.referrer || '-'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Vote Results */}
       {results && results.tally.length > 0 && (

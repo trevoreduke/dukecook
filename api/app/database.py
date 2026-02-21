@@ -47,7 +47,7 @@ async def init_db():
             TasteProfile, TastePreference, CookingHistory,
             ShoppingList, ShoppingItem, PantryStaple,
             CalendarEvent, ImportLog, KrogerToken,
-            GuestMenu, GuestMenuItem, GuestVote,
+            GuestMenu, GuestMenuItem, GuestVote, MenuView,
         )
         await conn.run_sync(Base.metadata.create_all)
 

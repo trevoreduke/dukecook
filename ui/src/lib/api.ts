@@ -177,3 +177,4 @@ export const submitGuestVote = (slug: string, data: any) =>
   request<any>(`/api/guest-menus/public/${slug}/vote`, { method: 'POST', body: JSON.stringify(data) });
 export const getGuestVotes = (slug: string, guestName: string) =>
   request<any>(`/api/guest-menus/public/${slug}/votes/${encodeURIComponent(guestName)}`);
+export const getMenuViews = (id: number) => request<any>(`/api/guest-menus/${id}/views`);
