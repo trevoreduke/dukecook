@@ -1,14 +1,17 @@
 """Guest Menus — shareable themed menu pages with guest voting."""
 
+import hashlib
 import re
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import get_settings
 from app.database import get_db
-from app.models import GuestMenu, GuestMenuItem, GuestVote, MenuView, Recipe, RecipeIngredient, RecipeStep, User
+from app.models import GuestMenu, GuestMenuItem, GuestVote, MenuView, RecipePhoto, Recipe, RecipeIngredient, RecipeStep, User
 from app.schemas import (
     GuestMenuCreate, GuestMenuUpdate, GuestMenuOut, GuestMenuSummary,
     GuestMenuItemOut, GuestVoteCreate, GuestMenuResults, GuestVoteTally,
@@ -588,3 +591,131 @@ async def get_menu_views(
             for v in recent
         ],
     }
+
+
+# ---------- Guest Photo Uploads ----------
+
+@router.post("/public/{slug}/photos")
+async def upload_guest_photo(
+    slug: str,
+    file: UploadFile = File(...),
+    recipe_id: int = Form(...),
+    guest_name: str = Form(""),
+    caption: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """Guest uploads a photo for a recipe on this menu."""
+    result = await db.execute(
+        select(GuestMenu)
+        .options(selectinload(GuestMenu.items))
+        .where(GuestMenu.slug == slug)
+    )
+    menu = result.scalar_one_or_none()
+    if not menu:
+        raise HTTPException(status_code=404, detail="Menu not found")
+
+    # Validate recipe is on this menu
+    menu_recipe_ids = {item.recipe_id for item in menu.items}
+    if recipe_id not in menu_recipe_ids:
+        raise HTTPException(status_code=400, detail="Recipe not on this menu")
+
+    # Validate file
+    content_type = file.content_type or "image/jpeg"
+    allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"}
+    if content_type not in allowed:
+        raise HTTPException(status_code=400, detail=f"Unsupported image type: {content_type}")
+
+    image_data = await file.read()
+    if len(image_data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large. Max 20MB.")
+
+    # Save file
+    settings = get_settings()
+    image_dir = Path(settings.image_dir)
+    image_dir.mkdir(parents=True, exist_ok=True)
+
+    file_hash = hashlib.md5(image_data).hexdigest()[:12]
+    ext = ".jpg" if "jpeg" in content_type or "jpg" in content_type or "heic" in content_type else (
+        ".png" if "png" in content_type else ".webp"
+    )
+    filename = f"guest_{menu.id}_{recipe_id}_{file_hash}{ext}"
+    (image_dir / filename).write_bytes(image_data)
+
+    photo = RecipePhoto(
+        recipe_id=recipe_id,
+        menu_id=menu.id,
+        guest_name=guest_name.strip()[:200],
+        image_path=f"/images/{filename}",
+        caption=caption.strip()[:500],
+    )
+    db.add(photo)
+    await db.flush()
+
+    logger.info(f"Guest photo uploaded: recipe={recipe_id}, menu={menu.slug}, guest={guest_name}")
+    return {
+        "id": photo.id,
+        "image_path": photo.image_path,
+        "recipe_id": recipe_id,
+        "guest_name": photo.guest_name,
+    }
+
+
+@router.get("/public/{slug}/photos")
+async def get_menu_photos(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all photos uploaded for recipes on this menu."""
+    result = await db.execute(
+        select(GuestMenu).where(GuestMenu.slug == slug)
+    )
+    menu = result.scalar_one_or_none()
+    if not menu:
+        raise HTTPException(status_code=404, detail="Menu not found")
+
+    photos_result = await db.execute(
+        select(RecipePhoto)
+        .where(RecipePhoto.menu_id == menu.id)
+        .order_by(RecipePhoto.created_at.desc())
+    )
+    photos = photos_result.scalars().all()
+
+    return [
+        {
+            "id": p.id,
+            "recipe_id": p.recipe_id,
+            "image_path": p.image_path,
+            "guest_name": p.guest_name,
+            "caption": p.caption,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in photos
+    ]
+
+
+@router.get("/{menu_id}/photos")
+async def get_menu_photos_admin(
+    menu_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin view: all photos for a menu event."""
+    photos_result = await db.execute(
+        select(RecipePhoto)
+        .options(selectinload(RecipePhoto.recipe))
+        .where(RecipePhoto.menu_id == menu_id)
+        .order_by(RecipePhoto.created_at.desc())
+    )
+    photos = photos_result.scalars().all()
+
+    return [
+        {
+            "id": p.id,
+            "recipe_id": p.recipe_id,
+            "recipe_title": p.recipe.title if p.recipe else "",
+            "image_path": p.image_path,
+            "guest_name": p.guest_name,
+            "caption": p.caption,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in photos
+    ]

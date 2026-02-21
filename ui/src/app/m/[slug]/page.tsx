@@ -22,14 +22,19 @@ export default function GuestMenuPage() {
   // Recipe detail modal
   const [detailRecipe, setDetailRecipe] = useState<any>(null);
 
+  // Guest photos
+  const [menuPhotos, setMenuPhotos] = useState<any[]>([]);
+  const [uploadingPhotoFor, setUploadingPhotoFor] = useState<number | null>(null);
+
   // Load menu data
   useEffect(() => {
     setLoading(true);
     getPublicMenu(slug)
       .then((data) => {
         setMenu(data);
-        // Track page view (fire-and-forget)
+        // Track page view and load photos (fire-and-forget)
         fetch(`/api/guest-menus/public/${slug}/view`, { method: 'POST' }).catch(() => {});
+        fetch(`/api/guest-menus/public/${slug}/photos`).then(r => r.json()).then(setMenuPhotos).catch(() => {});
         const savedName = localStorage.getItem(`guestmenu_${slug}_name`);
         if (savedName) {
           setGuestName(savedName);
@@ -156,6 +161,23 @@ export default function GuestMenuPage() {
 
   const handleChangeVotes = () => {
     setHasVoted(false);
+  };
+
+  const handlePhotoUpload = async (recipeId: number, file: File) => {
+    setUploadingPhotoFor(recipeId);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('recipe_id', String(recipeId));
+      form.append('guest_name', guestName);
+      const res = await fetch(`/api/guest-menus/public/${slug}/photos`, { method: 'POST', body: form });
+      if (!res.ok) throw new Error('Upload failed');
+      const photo = await res.json();
+      setMenuPhotos(prev => [photo, ...prev]);
+    } catch {
+      // Silent fail — don't disrupt the guest experience
+    }
+    setUploadingPhotoFor(null);
   };
 
   // Theme-derived styles
@@ -543,6 +565,85 @@ export default function GuestMenuPage() {
                           fontStyle: 'italic',
                         }}>
                           {comments[item.recipe_id]}
+                        </div>
+                      )}
+
+                      {/* Photo upload + gallery for voted dishes */}
+                      {hasVoted && (
+                        <div style={{ marginTop: '0.5rem' }}>
+                          {/* Show existing photos for this recipe */}
+                          {menuPhotos.filter(p => p.recipe_id === item.recipe_id).length > 0 && (
+                            <div style={{
+                              display: 'flex',
+                              gap: '0.4rem',
+                              flexWrap: 'wrap',
+                              marginBottom: '0.4rem',
+                            }}>
+                              {menuPhotos.filter(p => p.recipe_id === item.recipe_id).map((p: any) => (
+                                <div key={p.id} style={{ position: 'relative' }}>
+                                  <img
+                                    src={p.image_path}
+                                    alt=""
+                                    style={{
+                                      width: '56px',
+                                      height: '56px',
+                                      objectFit: 'cover',
+                                      borderRadius: '6px',
+                                      border: `1px solid ${accentColor}30`,
+                                    }}
+                                  />
+                                  {p.guest_name && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      bottom: '2px',
+                                      left: '2px',
+                                      right: '2px',
+                                      fontSize: '0.55rem',
+                                      color: '#fff',
+                                      background: 'rgba(0,0,0,0.5)',
+                                      borderRadius: '0 0 4px 4px',
+                                      textAlign: 'center',
+                                      padding: '1px',
+                                    }}>
+                                      {p.guest_name}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {/* Upload button */}
+                          <label style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            padding: '0.3rem 0.7rem',
+                            fontSize: '0.75rem',
+                            color: accentColor,
+                            border: `1px solid ${accentColor}40`,
+                            borderRadius: '999px',
+                            cursor: uploadingPhotoFor === item.recipe_id ? 'wait' : 'pointer',
+                            opacity: uploadingPhotoFor === item.recipe_id ? 0.6 : 1,
+                            fontFamily: bodyFont,
+                          }}>
+                            {uploadingPhotoFor === item.recipe_id ? (
+                              'Uploading...'
+                            ) : (
+                              <>📸 Add Photo</>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              style={{ display: 'none' }}
+                              disabled={uploadingPhotoFor !== null}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handlePhotoUpload(item.recipe_id, file);
+                                e.target.value = '';
+                              }}
+                            />
+                          </label>
                         </div>
                       )}
 

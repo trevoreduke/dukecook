@@ -499,3 +499,23 @@ class MenuView(Base):
     __table_args__ = (
         Index("ix_menu_views_menu", "menu_id"),
     )
+
+
+class RecipePhoto(Base):
+    __tablename__ = "recipe_photos"
+
+    id = Column(Integer, primary_key=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
+    menu_id = Column(Integer, ForeignKey("guest_menus.id", ondelete="SET NULL"), nullable=True)
+    guest_name = Column(String(200), default="")
+    image_path = Column(String(500), nullable=False)
+    caption = Column(Text, default="")
+    created_at = Column(DateTime, server_default=func.now())
+
+    recipe = relationship("Recipe")
+    menu = relationship("GuestMenu")
+
+    __table_args__ = (
+        Index("ix_recipe_photos_recipe", "recipe_id"),
+        Index("ix_recipe_photos_menu", "menu_id"),
+    )
