@@ -10,6 +10,7 @@ import { I18nProvider, LanguageToggle, useI18n } from '@/lib/i18n';
 
 const NAV_ITEMS = [
   { href: '/', label: '🏠', titleKey: 'nav.home' },
+  { href: '/dashboard', label: '📊', titleKey: 'nav.dashboard' },
   { href: '/recipes', label: '📖', titleKey: 'nav.recipes' },
   { href: '/recipes/import', label: '📥', titleKey: 'nav.import' },
   { href: '/planner', label: '📅', titleKey: 'nav.planner' },

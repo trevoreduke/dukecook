@@ -7,6 +7,7 @@ export type Locale = 'en' | 'es';
 const translations: Record<string, Record<Locale, string>> = {
   // ── Layout / Nav ──
   'nav.home': { en: 'Home', es: 'Inicio' },
+  'nav.dashboard': { en: 'Dashboard', es: 'Panel' },
   'nav.recipes': { en: 'Recipes', es: 'Recetas' },
   'nav.import': { en: 'Import', es: 'Importar' },
   'nav.planner': { en: 'Planner', es: 'Planificador' },
