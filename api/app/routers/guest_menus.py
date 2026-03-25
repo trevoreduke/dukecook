@@ -129,6 +129,8 @@ async def build_menu_out(menu: GuestMenu, db: AsyncSession) -> dict:
         "theme_prompt": menu.theme_prompt or "",
         "theme": menu.theme or {},
         "active": menu.active,
+        "voting_enabled": menu.voting_enabled if menu.voting_enabled is not None else True,
+        "text_blocks": menu.text_blocks or [],
         "created_by": menu.created_by,
         "host_name": host_name,
         "items": items_out,
@@ -179,6 +181,7 @@ async def create_guest_menu(
         theme_prompt=data.theme_prompt or "",
         theme=theme or {},
         created_by=user_id,
+        voting_enabled=data.voting_enabled,
     )
     db.add(menu)
     await db.flush()
@@ -226,6 +229,7 @@ async def list_guest_menus(db: AsyncSession = Depends(get_db)):
             "title": menu.title,
             "slug": menu.slug,
             "active": menu.active,
+            "voting_enabled": menu.voting_enabled if menu.voting_enabled is not None else True,
             "item_count": len(menu.items),
             "vote_count": vote_count,
             "guest_count": guest_count,
@@ -285,6 +289,10 @@ async def update_guest_menu(
             menu.slug = new_slug
     if data.active is not None:
         menu.active = data.active
+    if data.voting_enabled is not None:
+        menu.voting_enabled = data.voting_enabled
+    if data.text_blocks is not None:
+        menu.text_blocks = data.text_blocks
     if data.theme is not None:
         # Merge partial theme overrides into existing theme
         merged = dict(menu.theme or {})
@@ -455,6 +463,8 @@ async def submit_guest_vote(
         raise HTTPException(status_code=404, detail="Menu not found")
     if not menu.active:
         raise HTTPException(status_code=410, detail="This menu is no longer active")
+    if not menu.voting_enabled:
+        raise HTTPException(status_code=403, detail="Voting is not enabled for this menu")
 
     # Validate recipe_ids are on this menu
     menu_recipe_ids = {item.recipe_id for item in menu.items}

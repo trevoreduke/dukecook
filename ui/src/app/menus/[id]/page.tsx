@@ -22,9 +22,11 @@ export default function MenuDetailPage() {
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [active, setActive] = useState(true);
+  const [votingEnabled, setVotingEnabled] = useState(true);
   const [themePrompt, setThemePrompt] = useState('');
   const [tagline, setTagline] = useState('');
   const [subtexts, setSubtexts] = useState<Record<number, string>>({});
+  const [textBlocks, setTextBlocks] = useState<{ title: string; text: string; sort_order: number }[]>([]);
 
   // Recipe sections editing
   const [sections, setSections] = useState<{ title: string; recipeIds: number[] }[]>([]);
@@ -49,8 +51,10 @@ export default function MenuDetailPage() {
       setTitle(menuData.title);
       setSlug(menuData.slug);
       setActive(menuData.active);
+      setVotingEnabled(menuData.voting_enabled !== false);
       setThemePrompt(menuData.theme_prompt || '');
       setTagline(menuData.theme?.tagline || '');
+      setTextBlocks(menuData.text_blocks || []);
       const st: Record<number, string> = {};
       for (const item of menuData.items || []) {
         if (item.subtext) st[item.recipe_id] = item.subtext;
@@ -105,7 +109,7 @@ export default function MenuDetailPage() {
     setSaving(true);
     setError('');
     try {
-      const update: any = { title, slug, active };
+      const update: any = { title, slug, active, voting_enabled: votingEnabled, text_blocks: textBlocks };
       // Include tagline if it changed
       if (tagline !== (menu.theme?.tagline || '')) {
         update.theme = { tagline };
@@ -296,7 +300,7 @@ export default function MenuDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="space-y-2">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -304,7 +308,16 @@ export default function MenuDetailPage() {
               onChange={(e) => setActive(e.target.checked)}
               className="w-4 h-4 rounded"
             />
-            <span className="text-sm">Active (guests can access and vote)</span>
+            <span className="text-sm">Active (guests can access the page)</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={votingEnabled}
+              onChange={(e) => setVotingEnabled(e.target.checked)}
+              className="w-4 h-4 rounded"
+            />
+            <span className="text-sm">Voting enabled (guests can select favorites)</span>
           </label>
         </div>
 
@@ -316,6 +329,68 @@ export default function MenuDetailPage() {
             Delete Menu
           </button>
         </div>
+      </div>
+
+      {/* Text Blocks */}
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg">Text Blocks</h2>
+          <span className="text-xs text-gray-400">Shown on the guest page above/below recipes</span>
+        </div>
+
+        {textBlocks.map((block, idx) => (
+          <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                className="input flex-1 text-sm font-medium"
+                placeholder="Title (optional)"
+                value={block.title}
+                onChange={(e) => {
+                  const updated = [...textBlocks];
+                  updated[idx] = { ...updated[idx], title: e.target.value };
+                  setTextBlocks(updated);
+                }}
+              />
+              <select
+                className="text-xs bg-gray-100 border-0 rounded px-2 py-1 text-gray-500 cursor-pointer"
+                value={block.sort_order || 0}
+                onChange={(e) => {
+                  const updated = [...textBlocks];
+                  updated[idx] = { ...updated[idx], sort_order: Number(e.target.value) };
+                  setTextBlocks(updated);
+                }}
+                title="Position"
+              >
+                <option value={0}>Above recipes</option>
+                <option value={1}>Below recipes</option>
+              </select>
+              <button
+                onClick={() => setTextBlocks(tb => tb.filter((_, i) => i !== idx))}
+                className="text-red-400 hover:text-red-600 text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+            <textarea
+              className="input text-sm"
+              rows={2}
+              placeholder="Text content..."
+              value={block.text}
+              onChange={(e) => {
+                const updated = [...textBlocks];
+                updated[idx] = { ...updated[idx], text: e.target.value };
+                setTextBlocks(updated);
+              }}
+            />
+          </div>
+        ))}
+
+        <button
+          onClick={() => setTextBlocks(tb => [...tb, { title: '', text: '', sort_order: 0 }])}
+          className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
+        >
+          + Add Text Block
+        </button>
       </div>
 
       {/* Theme Section */}

@@ -79,7 +79,7 @@ HTML:
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=8192,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -242,7 +242,7 @@ CRITICAL RULES — READ CAREFULLY:
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=8192,
             messages=[{
                 "role": "user",
@@ -323,7 +323,7 @@ async def enrich_recipe_tags(recipe_data: dict) -> list[str]:
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=256,
             messages=[{
                 "role": "user",
@@ -379,7 +379,7 @@ async def generate_taste_insights(
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=512,
             messages=[{
                 "role": "user",

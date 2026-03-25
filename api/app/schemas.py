@@ -292,6 +292,10 @@ class CalendarEventCreate(BaseModel):
     end_time: Optional[str] = None
     summary: str = ""
     is_dinner_conflict: bool = False
+    event_type: str = "block"  # block, special, dinner_party, holiday, birthday
+    color: str = ""
+    description: str = ""
+    guest_count: Optional[int] = None
 
 class CalendarEventOut(BaseModel):
     id: int
@@ -301,7 +305,16 @@ class CalendarEventOut(BaseModel):
     summary: str
     is_dinner_conflict: bool
     source: str
+    event_type: str = "block"
+    color: str = ""
+    description: str = ""
+    guest_count: Optional[int] = None
     model_config = {"from_attributes": True}
+
+class MonthPlanOut(BaseModel):
+    year: int
+    month: int
+    days: list[dict]  # same structure as WeekPlanOut.days
 
 class AvailabilityOut(BaseModel):
     date: date
@@ -344,14 +357,17 @@ class GuestMenuCreate(BaseModel):
     slug: str = ""  # Auto-generated from title if empty
     theme_prompt: str = ""
     recipe_ids: list[int]
+    voting_enabled: bool = True
 
 class GuestMenuUpdate(BaseModel):
     title: Optional[str] = None
     slug: Optional[str] = None
     active: Optional[bool] = None
+    voting_enabled: Optional[bool] = None
     recipe_ids: Optional[list[int]] = None
     theme: Optional[dict] = None  # Partial theme overrides (merged into existing)
     subtexts: Optional[dict[int, str]] = None  # {recipe_id: "subtext"}
+    text_blocks: Optional[list[dict]] = None  # [{"title": "...", "text": "...", "sort_order": 0}]
 
 class GuestMenuItemOut(BaseModel):
     recipe_id: int
@@ -377,6 +393,8 @@ class GuestMenuOut(BaseModel):
     theme_prompt: str = ""
     theme: dict = {}
     active: bool = True
+    voting_enabled: bool = True
+    text_blocks: list[dict] = []
     created_by: Optional[int] = None
     host_name: str = ""
     items: list[GuestMenuItemOut] = []
@@ -390,6 +408,7 @@ class GuestMenuSummary(BaseModel):
     title: str
     slug: str
     active: bool = True
+    voting_enabled: bool = True
     item_count: int = 0
     vote_count: int = 0
     guest_count: int = 0

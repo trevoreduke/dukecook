@@ -1,5 +1,6 @@
 """Meal planner routes."""
 
+import calendar
 import logging
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +10,7 @@ from sqlalchemy import select, and_
 from app.database import get_db
 from app.models import MealPlan, Recipe, CalendarEvent
 from app.schemas import (
-    MealPlanCreate, MealPlanUpdate, MealPlanOut, WeekPlanOut,
+    MealPlanCreate, MealPlanUpdate, MealPlanOut, WeekPlanOut, MonthPlanOut,
     SuggestRequest, CalendarEventCreate, CalendarEventOut, AvailabilityOut,
 )
 from app.services.rules_engine import evaluate_rules, get_rule_status_for_week
@@ -127,6 +128,104 @@ async def get_week_plan(
     )
 
 
+@router.get("/month", response_model=MonthPlanOut)
+async def get_month_plan(
+    year: int = Query(...),
+    month: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get meal plan and events for an entire month."""
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+
+    _, last_day = calendar.monthrange(year, month)
+    month_start = date(year, month, 1)
+    month_end = date(year, month, last_day)
+
+    logger.info(f"Getting month plan: {month_start} to {month_end}")
+
+    # Get meal plans
+    plan_result = await db.execute(
+        select(MealPlan)
+        .where(and_(MealPlan.date >= month_start, MealPlan.date <= month_end))
+        .order_by(MealPlan.date)
+    )
+    plans = plan_result.scalars().all()
+
+    # Get local calendar events
+    cal_result = await db.execute(
+        select(CalendarEvent)
+        .where(and_(CalendarEvent.date >= month_start, CalendarEvent.date <= month_end))
+        .order_by(CalendarEvent.date)
+    )
+    cal_events = cal_result.scalars().all()
+
+    # Fetch HA calendar events
+    try:
+        ha_events = await fetch_ha_events(month_start, month_end)
+    except Exception as e:
+        logger.warning(f"Failed to fetch HA calendar events: {e}")
+        ha_events = []
+
+    # Build day-by-day view
+    days = []
+    for i in range(last_day):
+        d = month_start + timedelta(days=i)
+        day_plans = [p for p in plans if p.date == d]
+        day_local_events = [e for e in cal_events if e.date == d]
+        day_ha_events = [e for e in ha_events if e["date"] == str(d)]
+        has_conflict = (
+            any(e.is_dinner_conflict for e in day_local_events)
+            or any(e["is_dinner_conflict"] for e in day_ha_events)
+        )
+
+        meals = []
+        for p in day_plans:
+            recipe_result = await db.execute(select(Recipe).where(Recipe.id == p.recipe_id))
+            recipe = recipe_result.scalar_one_or_none()
+            meals.append({
+                "id": p.id,
+                "meal_type": p.meal_type,
+                "recipe_id": p.recipe_id,
+                "recipe_title": recipe.title if recipe else "Unknown",
+                "recipe_image": recipe.image_url if recipe else "",
+                "status": p.status,
+                "notes": p.notes,
+            })
+
+        events = [
+            CalendarEventOut.model_validate(e).model_dump()
+            for e in day_local_events
+        ]
+        for ha_ev in day_ha_events:
+            events.append({
+                "id": None,
+                "date": ha_ev["date"],
+                "start_time": ha_ev.get("start_time"),
+                "end_time": ha_ev.get("end_time"),
+                "summary": ha_ev["summary"],
+                "is_dinner_conflict": ha_ev["is_dinner_conflict"],
+                "source": "homeassistant",
+                "calendar": ha_ev.get("calendar", ""),
+                "location": ha_ev.get("location", ""),
+                "all_day": ha_ev.get("all_day", False),
+                "event_type": "block",
+                "color": "",
+                "description": "",
+                "guest_count": None,
+            })
+
+        days.append({
+            "date": str(d),
+            "day_name": d.strftime("%A"),
+            "available": not has_conflict,
+            "meals": meals,
+            "calendar_events": events,
+        })
+
+    return MonthPlanOut(year=year, month=month, days=days)
+
+
 @router.post("", response_model=MealPlanOut, status_code=201)
 async def create_plan_entry(data: MealPlanCreate, db: AsyncSession = Depends(get_db)):
     """Add a recipe to the meal plan."""
@@ -236,6 +335,10 @@ async def add_calendar_event(data: CalendarEventCreate, db: AsyncSession = Depen
         summary=data.summary,
         is_dinner_conflict=data.is_dinner_conflict,
         source="manual",
+        event_type=data.event_type,
+        color=data.color,
+        description=data.description,
+        guest_count=data.guest_count,
     )
     db.add(event)
     await db.flush()

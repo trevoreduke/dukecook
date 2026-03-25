@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart, archiveRecipe, unarchiveRecipe, updateRecipe, uploadRecipePhoto } from '@/lib/api';
+import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart, archiveRecipe, unarchiveRecipe, updateRecipe, uploadRecipePhoto, addToPlan } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 import { useI18n } from '@/lib/i18n';
 
@@ -57,6 +57,10 @@ export default function RecipeDetailPage() {
   const [krogerLoading, setKrogerLoading] = useState(false);
   const [krogerCartResult, setKrogerCartResult] = useState<any>(null);
   const [showKrogerDetails, setShowKrogerDetails] = useState(false);
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [planDate, setPlanDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [addingToPlan, setAddingToPlan] = useState(false);
+  const [planSuccess, setPlanSuccess] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -125,6 +129,19 @@ export default function RecipeDetailPage() {
     }
     setUploadingPhoto(false);
     e.target.value = '';  // Reset so same file can be re-selected
+  };
+
+  const handleAddToPlan = async () => {
+    setAddingToPlan(true);
+    try {
+      await addToPlan({ date: planDate, recipe_id: recipe.id, meal_type: 'dinner' });
+      setPlanSuccess(true);
+      setShowPlanForm(false);
+      setTimeout(() => setPlanSuccess(false), 4000);
+    } catch {
+      alert('Failed to add to plan.');
+    }
+    setAddingToPlan(false);
   };
 
   if (loading) return <div className="text-center py-12 text-gray-400">Loading...</div>;
@@ -218,6 +235,12 @@ export default function RecipeDetailPage() {
         <Link href={`/cook/${recipe.id}`} className="btn-primary flex-1 text-center">
           👨‍🍳 Start Cooking
         </Link>
+        <button
+          onClick={() => setShowPlanForm(!showPlanForm)}
+          className={`btn-secondary ${showPlanForm ? 'ring-2 ring-brand-300' : ''}`}
+        >
+          📅 Add to Calendar
+        </button>
         <button onClick={() => setShowRating(!showRating)} className="btn-secondary">
           ⭐ Rate
         </button>
@@ -246,6 +269,33 @@ export default function RecipeDetailPage() {
         </button>
         <button onClick={handleDelete} className="btn-danger">🗑</button>
       </div>
+
+      {/* Add to Plan form */}
+      {showPlanForm && (
+        <div className="card p-4 flex flex-wrap gap-3 items-center">
+          <span className="text-sm font-medium text-gray-600">Add to meal plan:</span>
+          <input
+            type="date"
+            className="input flex-1 min-w-[150px]"
+            value={planDate}
+            onChange={(e) => setPlanDate(e.target.value)}
+          />
+          <button onClick={handleAddToPlan} disabled={addingToPlan || !planDate} className="btn-primary text-sm">
+            {addingToPlan ? 'Adding...' : '+ Add to Plan'}
+          </button>
+          <button onClick={() => setShowPlanForm(false)} className="btn-secondary text-sm">✕</button>
+        </div>
+      )}
+
+      {/* Plan success banner */}
+      {planSuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-green-800 text-sm flex items-center gap-2">
+          ✓ Added to meal plan!
+          <Link href="/planner" className="ml-auto text-green-700 hover:text-green-900 font-medium underline">
+            View planner →
+          </Link>
+        </div>
+      )}
 
       {/* Archived banner */}
       {recipe.archived && (

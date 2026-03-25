@@ -64,10 +64,10 @@ Full API docs at `/docs` when running.
 ```bash
 # Sync to Framework
 rsync -avz --delete --exclude node_modules --exclude .next --exclude __pycache__ --exclude .git \
-  ~/claudecode/projects/dukecook/ framework-remote:~/dukecook/
+  ~/claudecode/projects/dukecook/ framework-remote:/opt/apps/dukecook/
 
 # Build and run
-ssh framework-remote "cd ~/dukecook && docker compose up -d --build"
+ssh framework-remote "cd /opt/apps/dukecook && docker compose up -d --build"
 ```
 
 Then set up Cloudflare tunnel for `cook.trevorduke.com`.

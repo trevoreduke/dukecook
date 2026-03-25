@@ -25,6 +25,11 @@ export default function MenusPage() {
     loadMenus();
   };
 
+  const toggleVoting = async (menu: any) => {
+    await updateGuestMenu(menu.id, { voting_enabled: !menu.voting_enabled });
+    loadMenus();
+  };
+
   const handleDelete = async (menu: any) => {
     if (!confirm(`Delete "${menu.title}"? This removes all votes too.`)) return;
     await deleteGuestMenu(menu.id);
@@ -67,11 +72,14 @@ export default function MenusPage() {
                       {menu.active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
                     <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">/m/{menu.slug}</span>
                     <span>{menu.item_count} recipes</span>
                     <span>{menu.vote_count} votes</span>
                     <span>{menu.guest_count} guests</span>
+                    {menu.voting_enabled === false && (
+                      <span className="badge bg-yellow-100 text-yellow-700 text-xs">Voting Off</span>
+                    )}
                   </div>
                 </div>
 
@@ -84,6 +92,16 @@ export default function MenusPage() {
                     className="px-3 py-1.5 text-sm rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100"
                   >
                     Copy Link
+                  </button>
+                  <button
+                    onClick={() => toggleVoting(menu)}
+                    className={`px-3 py-1.5 text-sm rounded-lg ${
+                      menu.voting_enabled !== false
+                        ? 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
+                        : 'bg-green-50 text-green-600 hover:bg-green-100'
+                    }`}
+                  >
+                    {menu.voting_enabled !== false ? 'Disable Voting' : 'Enable Voting'}
                   </button>
                   <button
                     onClick={() => toggleActive(menu)}

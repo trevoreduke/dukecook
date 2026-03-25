@@ -76,6 +76,8 @@ export default function GuestMenuPage() {
   }, [menu?.theme?.title_font, menu?.theme?.heading_font, menu?.theme?.body_font]);
 
   const theme = menu?.theme || {};
+  const votingEnabled = menu?.voting_enabled !== false;
+  const textBlocks = menu?.text_blocks || [];
 
   // Build a recipe lookup map for section rendering
   const recipeMap = useMemo(() => {
@@ -304,75 +306,109 @@ export default function GuestMenuPage() {
               </div>
             </header>
 
-            {/* ─── Guest Name Input ─── */}
-            <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-              {hasVoted ? (
-                <div>
-                  <p style={{
+            {/* ─── Text Blocks (top position) ─── */}
+            {textBlocks.filter((b: any) => !b.sort_order || b.sort_order === 0).map((block: any, idx: number) => (
+              <div key={`tb-top-${idx}`} style={{
+                textAlign: 'center',
+                marginBottom: '1.25rem',
+                padding: '0.75rem',
+              }}>
+                {block.title && (
+                  <h3 style={{
                     fontFamily: headingFont,
                     color: headingColor,
-                    fontSize: '1.1rem',
-                    marginBottom: '0.25rem',
-                    letterSpacing: '0.05em',
-                  }}>
-                    Thank you, {guestName}!
-                  </p>
-                  <p style={{ color: mutedColor, fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                    Your selections have been recorded.
-                  </p>
-                  <button
-                    onClick={handleChangeVotes}
-                    style={{
-                      background: 'transparent',
-                      border: `1px solid ${accentColor}`,
-                      color: accentColor,
-                      padding: '0.65rem 1.5rem',
-                      fontFamily: headingFont,
-                      fontSize: '0.85rem',
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      cursor: 'pointer',
-                      minHeight: '44px',
-                    }}
-                  >
-                    Change Selections
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <label style={{
-                    display: 'block',
-                    fontFamily: headingFont,
-                    color: mutedColor,
-                    fontSize: '0.85rem',
+                    fontSize: '1rem',
+                    fontWeight: 600,
                     letterSpacing: '0.1em',
                     textTransform: 'uppercase',
                     marginBottom: '0.4rem',
                   }}>
-                    Your Name
-                  </label>
-                  <input
-                    type="text"
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                    placeholder="Enter your name..."
-                    style={{
-                      width: '100%',
-                      maxWidth: '280px',
-                      padding: '0.6rem 0',
-                      border: 'none',
-                      borderBottom: `1px solid ${accentColor}`,
-                      background: 'transparent',
-                      color: textColor,
-                      fontSize: '1.05rem',
-                      fontFamily: bodyFont,
-                      textAlign: 'center',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+                    {block.title}
+                  </h3>
+                )}
+                <p style={{
+                  color: mutedColor,
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  fontStyle: 'italic',
+                  whiteSpace: 'pre-wrap',
+                }}>
+                  {block.text}
+                </p>
+              </div>
+            ))}
+
+            {/* ─── Guest Name Input (voting only) ─── */}
+            {votingEnabled && (
+              <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+                {hasVoted ? (
+                  <div>
+                    <p style={{
+                      fontFamily: headingFont,
+                      color: headingColor,
+                      fontSize: '1.1rem',
+                      marginBottom: '0.25rem',
+                      letterSpacing: '0.05em',
+                    }}>
+                      Thank you, {guestName}!
+                    </p>
+                    <p style={{ color: mutedColor, fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                      Your selections have been recorded.
+                    </p>
+                    <button
+                      onClick={handleChangeVotes}
+                      style={{
+                        background: 'transparent',
+                        border: `1px solid ${accentColor}`,
+                        color: accentColor,
+                        padding: '0.65rem 1.5rem',
+                        fontFamily: headingFont,
+                        fontSize: '0.85rem',
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                        minHeight: '44px',
+                      }}
+                    >
+                      Change Selections
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      fontFamily: headingFont,
+                      color: mutedColor,
+                      fontSize: '0.85rem',
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      marginBottom: '0.4rem',
+                    }}>
+                      Your Name
+                    </label>
+                    <input
+                      type="text"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="Enter your name..."
+                      style={{
+                        width: '100%',
+                        maxWidth: '280px',
+                        padding: '0.6rem 0',
+                        border: 'none',
+                        borderBottom: `1px solid ${accentColor}`,
+                        background: 'transparent',
+                        color: textColor,
+                        fontSize: '1.05rem',
+                        fontFamily: bodyFont,
+                        textAlign: 'center',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ─── Menu Sections ─── */}
             {sections.map((section, sIdx) => (
@@ -436,6 +472,7 @@ export default function GuestMenuPage() {
                           : '3px solid transparent',
                       }}
                       onClick={() => {
+                        if (!votingEnabled) { setDetailRecipe(item); return; }
                         if (!hasVoted) toggleRecipe(item.recipe_id);
                         else setDetailRecipe(item);
                       }}
@@ -457,7 +494,7 @@ export default function GuestMenuPage() {
                           background: isSelected
                             ? (theme.checkbox_checked_bg || accentColor)
                             : 'transparent',
-                          display: hasVoted ? 'none' : 'flex',
+                          display: (hasVoted || !votingEnabled) ? 'none' : 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           flexShrink: 0,
@@ -548,7 +585,7 @@ export default function GuestMenuPage() {
                       </div>
 
                       {/* Inline comment input when selected (pre-vote) */}
-                      {isSelected && !hasVoted && (
+                      {votingEnabled && isSelected && !hasVoted && (
                         <div style={{ marginTop: '0.4rem', paddingLeft: '0' }}>
                           <input
                             type="text"
@@ -574,7 +611,7 @@ export default function GuestMenuPage() {
                       )}
 
                       {/* Show comment in post-vote summary */}
-                      {isSelected && hasVoted && comments[item.recipe_id] && (
+                      {votingEnabled && isSelected && hasVoted && comments[item.recipe_id] && (
                         <div style={{
                           marginTop: '0.3rem',
                           fontSize: '0.8rem',
@@ -586,7 +623,7 @@ export default function GuestMenuPage() {
                       )}
 
                       {/* Photo upload + gallery for voted dishes */}
-                      {hasVoted && (
+                      {votingEnabled && hasVoted && (
                         <div style={{ marginTop: '0.5rem' }}>
                           {/* Show existing photos for this recipe */}
                           {menuPhotos.filter(p => p.recipe_id === item.recipe_id).length > 0 && (
@@ -680,8 +717,40 @@ export default function GuestMenuPage() {
               </div>
             ))}
 
+            {/* ─── Text Blocks (bottom position) ─── */}
+            {textBlocks.filter((b: any) => b.sort_order && b.sort_order > 0).map((block: any, idx: number) => (
+              <div key={`tb-bot-${idx}`} style={{
+                textAlign: 'center',
+                marginBottom: '1.25rem',
+                padding: '0.75rem',
+              }}>
+                {block.title && (
+                  <h3 style={{
+                    fontFamily: headingFont,
+                    color: headingColor,
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    marginBottom: '0.4rem',
+                  }}>
+                    {block.title}
+                  </h3>
+                )}
+                <p style={{
+                  color: mutedColor,
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  fontStyle: 'italic',
+                  whiteSpace: 'pre-wrap',
+                }}>
+                  {block.text}
+                </p>
+              </div>
+            ))}
+
             {/* ─── Submit Button ─── */}
-            {!hasVoted && guestName.trim() && selectedRecipes.size > 0 && (
+            {votingEnabled && !hasVoted && guestName.trim() && selectedRecipes.size > 0 && (
               <div style={{ textAlign: 'center', margin: '2rem 0 1.5rem' }}>
                 <button
                   onClick={handleSubmitVotes}

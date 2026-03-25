@@ -57,6 +57,12 @@ async def init_db():
     migrations = [
         "ALTER TABLE guest_votes ADD COLUMN comment TEXT DEFAULT ''",
         "ALTER TABLE guest_menu_items ADD COLUMN subtext TEXT DEFAULT ''",
+        "ALTER TABLE calendar_events ADD COLUMN event_type VARCHAR(50) DEFAULT 'block'",
+        "ALTER TABLE calendar_events ADD COLUMN color VARCHAR(7) DEFAULT ''",
+        "ALTER TABLE calendar_events ADD COLUMN description TEXT DEFAULT ''",
+        "ALTER TABLE calendar_events ADD COLUMN guest_count INTEGER",
+        "ALTER TABLE guest_menus ADD COLUMN voting_enabled BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE guest_menus ADD COLUMN text_blocks JSON DEFAULT '[]'",
     ]
     for sql in migrations:
         try:

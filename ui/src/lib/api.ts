@@ -92,6 +92,8 @@ export const getWeekPlan = (start?: string) => {
   const qs = start ? `?start=${start}` : '';
   return request<any>(`/api/planner/week${qs}`);
 };
+export const getMonthPlan = (year: number, month: number) =>
+  request<any>(`/api/planner/month?year=${year}&month=${month}`);
 export const addToPlan = (data: any) => request<any>('/api/planner', { method: 'POST', body: JSON.stringify(data) });
 export const updatePlan = (id: number, data: any) => request<any>(`/api/planner/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deletePlan = (id: number) => request<void>(`/api/planner/${id}`, { method: 'DELETE' });

@@ -390,6 +390,10 @@ class CalendarEvent(Base):
     summary = Column(String(500), default="")
     is_dinner_conflict = Column(Boolean, default=False)
     source = Column(String(50), default="manual")  # manual, google_calendar
+    event_type = Column(String(50), default="block")  # block, special, dinner_party, holiday, birthday
+    color = Column(String(7), default="")  # hex color for calendar display
+    description = Column(Text, default="")  # detailed notes
+    guest_count = Column(Integer, nullable=True)  # for dinner parties
     synced_at = Column(DateTime, server_default=func.now())
 
     __table_args__ = (
@@ -443,6 +447,8 @@ class GuestMenu(Base):
     theme = Column(JSON, default=dict)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     active = Column(Boolean, default=True)
+    voting_enabled = Column(Boolean, default=True)
+    text_blocks = Column(JSON, default=list)  # [{"title": "...", "text": "...", "sort_order": 0}]
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
