@@ -14,6 +14,7 @@ from app.models import (
     MealPlan, Recipe, RecipeIngredient, Ingredient,
     ShoppingList, ShoppingItem, PantryStaple,
 )
+from app.services.ingredient_parser import clean_ingredient_name
 
 logger = logging.getLogger("dukecook.services.shopping_generator")
 
@@ -88,8 +89,8 @@ async def generate_shopping_list(
         ingredients = result.scalars().all()
 
         for ing in ingredients:
-            # Determine the ingredient name (prefer normalized, fall back to raw text)
-            ing_name = ing.raw_text
+            # Determine the ingredient name (prefer normalized, fall back to cleaned raw text)
+            ing_name = None
             aisle = "📦 Other"
 
             if ing.ingredient_id:
@@ -101,8 +102,17 @@ async def generate_shopping_list(
                     ing_name = normalized.name
                     aisle = CATEGORY_TO_AISLE.get(normalized.category, "📦 Other")
 
+            if not ing_name:
+                ing_name = clean_ingredient_name(ing.raw_text) or (ing.raw_text or "").strip()
+
+            if not ing_name:
+                continue
+
+            # Title-case for display, but dedup on lowercase
+            display_name = ing_name if ing_name[0].isupper() else ing_name.capitalize()
             key = ing_name.lower().strip()
-            aggregated[key]["name"] = ing_name
+
+            aggregated[key]["name"] = display_name
             aggregated[key]["aisle"] = aisle
             aggregated[key]["recipe_count"] += 1
             if ing.quantity:

@@ -104,6 +104,18 @@ async def create_session(data: SwipeSessionCreate, db: AsyncSession = Depends(ge
     )
 
 
+@router.get("/sessions/active")
+async def list_active_sessions(db: AsyncSession = Depends(get_db)):
+    """List all active swipe sessions."""
+    result = await db.execute(
+        select(SwipeSession)
+        .where(SwipeSession.status == "active")
+        .order_by(SwipeSession.created_at.desc())
+    )
+    sessions = result.scalars().all()
+    return [{"id": s.id, "context": s.context, "target_date": str(s.target_date) if s.target_date else None, "created_at": str(s.created_at)} for s in sessions]
+
+
 @router.get("/sessions/{session_id}", response_model=SwipeSessionOut)
 async def get_session(session_id: int, user_id: int = Query(...), db: AsyncSession = Depends(get_db)):
     """Get session status including progress for both users."""
@@ -386,15 +398,3 @@ async def get_matches(session_id: int, db: AsyncSession = Depends(get_db)):
 
     logger.info(f"Found {len(match_list)} matches for session {session_id}")
     return match_list
-
-
-@router.get("/sessions/active")
-async def list_active_sessions(db: AsyncSession = Depends(get_db)):
-    """List all active swipe sessions."""
-    result = await db.execute(
-        select(SwipeSession)
-        .where(SwipeSession.status == "active")
-        .order_by(SwipeSession.created_at.desc())
-    )
-    sessions = result.scalars().all()
-    return [{"id": s.id, "context": s.context, "target_date": str(s.target_date) if s.target_date else None, "created_at": str(s.created_at)} for s in sessions]

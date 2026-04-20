@@ -59,18 +59,39 @@ async def extract_recipe_from_html(html: str, url: str) -> Optional[dict]:
   "tags": ["italian", "chicken", "easy", "weeknight"]
 }}
 
-CRITICAL RULES — READ CAREFULLY:
-- Extract EVERY ingredient exactly as written. Do NOT skip optional ingredients, garnishes, or "for serving" items.
-- Extract EVERY step with FULL DETAIL. Do NOT summarize, condense, or combine steps.
-- Keep the EXACT wording and details from the original recipe. Include temperatures, visual cues ("until golden brown"), texture descriptions ("until the dough is smooth and elastic"), and technique tips.
-- If a step contains multiple sentences, keep ALL of them. A step like "Season the chicken. Let it rest for 10 minutes. This allows the salt to penetrate the meat." should be kept in full.
-- Include ALL author tips, headnotes, variations, make-ahead notes, storage instructions, and serving suggestions in the "notes" field.
+CRITICAL RULES — TRANSCRIBE, DO NOT REWRITE:
+
+You are a TRANSCRIBER, not an editor. Your job is to faithfully copy the recipe, NOT to clean it up or make it concise.
+
+INGREDIENTS:
+- Extract EVERY ingredient exactly as written, including optional items, garnishes, "for serving" items, and "to taste" mentions.
+- Keep every parenthetical and qualifier ("(such as Frank's RedHot)", "(8-ounce)", "softened", "drained", "at room temperature"). These belong in raw_text.
+- Preserve ingredient groupings ("For the sauce", "For the topping") in the "group" field.
+
+STEPS — THIS IS WHERE EXTRACTION FAILS MOST OFTEN:
+- Transcribe EVERY step with FULL DETAIL. Treat the original as canonical — if the source has 12 numbered steps, you output 12 steps. NEVER merge two source steps into one.
+- Keep the EXACT wording. Do NOT paraphrase. Do NOT shorten.
+- Preserve EVERY temperature ("preheat to 375°F"), time ("cook for 4 minutes"), and quantity ("add the remaining 2 tablespoons").
+- Preserve EVERY visual cue ("until golden brown", "until the edges pull away from the pan", "until a toothpick comes out clean"), texture cue ("smooth and elastic", "soft peaks form", "shaggy dough"), and technique tip ("don't overmix", "work quickly while the dough is cold", "don't move the chicken while it sears").
+- Preserve EVERY parenthetical aside, warning, and "tip" embedded in a step. They are NOT optional.
+- If a source step contains multiple sentences, keep ALL of them. Example: "Season the chicken with salt. Let it rest for 10 minutes. This dry-brine step makes a huge difference." → all three sentences must be in the same step.
+- Do NOT collapse "Combine A, B, C in a bowl. Whisk until smooth. Set aside." into "Whisk A, B, C together." — keep the original three sentences.
+- Do NOT drop "set aside", "reserve for later", "meanwhile", or other connective instructions.
+- Do NOT drop encouragement or tone ("don't worry if it looks runny — it'll set up", "this is the most important step!").
+
+NOTES:
+- Include ALL author headnotes, variations, substitutions, make-ahead instructions, storage instructions, freezing instructions, reheating instructions, equipment notes, and serving suggestions in the "notes" field. These usually appear above the ingredient list or below the steps. Capture them verbatim.
+
+OTHER:
 - Parse quantities as numbers (1.5, 0.25, etc.)
-- Preserve ingredient groupings (e.g., "For the sauce", "For the crust") in the "group" field
-- If a step has a clear timer (e.g., "cook for 10 minutes"), set duration_minutes and timer_label
-- Tags should include: cuisine, primary protein, difficulty, and any other relevant categories
-- If info is missing, use null
-- Return ONLY the JSON, no other text
+- If a step has a clear timer (e.g., "cook for 10 minutes"), set duration_minutes and timer_label.
+- Tags should include: cuisine, primary protein, difficulty, and any other relevant categories.
+- If info is missing, use null.
+- Return ONLY the JSON, no other text.
+
+SELF-CHECK BEFORE RESPONDING:
+- Count the numbered/bulleted steps in the source. Your "steps" array length must match (within ±1 if the source uses sub-bullets).
+- Reread your steps. If any source detail is missing, add it back before returning.
 
 URL: {url}
 
@@ -80,7 +101,7 @@ HTML:
     try:
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=8192,
+            max_tokens=16384,
             messages=[{"role": "user", "content": prompt}],
         )
 
@@ -224,12 +245,28 @@ async def extract_recipe_from_image(image_data: bytes, media_type: str, filename
   "tags": ["italian", "chicken", "easy", "weeknight"]
 }
 
-CRITICAL RULES — READ CAREFULLY:
-- Transcribe EVERY ingredient EXACTLY as written. Do NOT skip optional ingredients, garnishes, or "for serving" items.
-- Transcribe EVERY step with FULL DETAIL. Do NOT summarize, condense, or combine steps. Keep the EXACT wording.
-- Include ALL temperatures, visual cues, texture descriptions, and technique tips from every step.
-- If a step has multiple sentences, keep ALL of them verbatim.
-- Include ALL tips, headnotes, variations, notes, and serving suggestions in the "notes" field.
+CRITICAL RULES — TRANSCRIBE, DO NOT REWRITE:
+
+You are a TRANSCRIBER, not an editor. Your job is to faithfully copy the recipe, NOT to clean it up or make it concise.
+
+INGREDIENTS:
+- Transcribe EVERY ingredient EXACTLY as written, including optional items, garnishes, "for serving" items, and "to taste" mentions.
+- Keep every parenthetical and qualifier ("(such as Frank's RedHot)", "(8-ounce)", "softened", "drained", "at room temperature") in raw_text.
+- Preserve ingredient groupings ("For the sauce") in the "group" field.
+
+STEPS — THIS IS WHERE EXTRACTION FAILS MOST OFTEN:
+- Transcribe EVERY step with FULL DETAIL. If the source has 12 numbered steps, output 12 steps. NEVER merge two source steps into one.
+- Keep the EXACT wording. Do NOT paraphrase. Do NOT shorten.
+- Preserve EVERY temperature, time, and quantity reference inside a step.
+- Preserve EVERY visual cue ("until golden brown"), texture cue ("smooth and elastic"), and technique tip ("don't overmix", "work quickly").
+- Preserve EVERY parenthetical aside, warning, or "tip" embedded in a step. They are NOT optional.
+- Multi-sentence steps stay multi-sentence. All sentences from one source step belong in the same output step.
+- Do NOT drop "set aside", "reserve", "meanwhile", or other connective instructions.
+
+NOTES:
+- Include ALL author headnotes, variations, substitutions, make-ahead, storage, freezing, reheating, equipment notes, and serving suggestions in the "notes" field — verbatim.
+
+OTHER:
 - Parse quantities as numbers (1.5, 0.25, etc.)
 - Preserve ingredient groupings in the "group" field
 - If a step has a timer, set duration_minutes and timer_label
@@ -238,12 +275,16 @@ CRITICAL RULES — READ CAREFULLY:
 - If something is unclear, make your best guess and note it in the "notes" field
 - If info is missing (no servings listed, etc.), use reasonable defaults
 - Tags should include: cuisine, primary protein, difficulty, and any relevant categories
-- Return ONLY the JSON, no other text"""
+- Return ONLY the JSON, no other text
+
+SELF-CHECK BEFORE RESPONDING:
+- Count the numbered/bulleted steps visible in the image. Your "steps" array length must match.
+- Reread your steps. If any source detail is missing, add it back before returning."""
 
     try:
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=8192,
+            max_tokens=16384,
             messages=[{
                 "role": "user",
                 "content": [

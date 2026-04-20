@@ -10,6 +10,15 @@ import { UserContext } from '@/lib/user-context';
 import Link from 'next/link';
 import { format, addDays, subDays, startOfWeek, addMonths, subMonths } from 'date-fns';
 
+// Returns today as 'yyyy-MM-dd' once mounted on the client. Returns '' during
+// SSR + first render to avoid hydration mismatches when server "today" differs
+// from client "today" (timezone / day-rollover).
+function useToday(): string {
+  const [today, setToday] = useState('');
+  useEffect(() => { setToday(format(new Date(), 'yyyy-MM-dd')); }, []);
+  return today;
+}
+
 // ─── Event type config ───
 const EVENT_TYPES = [
   { value: 'special', label: 'Special Event', color: '#8B5CF6', icon: '⭐' },
@@ -254,7 +263,8 @@ function DayDetail({
 }) {
   const [showAddMeal, setShowAddMeal] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<number | null>(null);
-  const isToday = day.date === format(new Date(), 'yyyy-MM-dd');
+  const today = useToday();
+  const isToday = !!today && day.date === today;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
@@ -361,7 +371,7 @@ function DayDetail({
 
 // ─── Week View (Portrait) ───
 function WeekView({ weekPlan, onDayClick }: { weekPlan: any; onDayClick: (day: any) => void }) {
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const today = useToday();
 
   return (
     <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
@@ -437,7 +447,7 @@ function WeekView({ weekPlan, onDayClick }: { weekPlan: any; onDayClick: (day: a
 
 // ─── Month View ───
 function MonthView({ monthPlan, month, year, onDayClick }: { monthPlan: any; month: number; year: number; onDayClick: (day: any) => void }) {
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const today = useToday();
 
   // Calculate which day of the week the 1st falls on (0=Mon for our grid)
   const firstDay = new Date(year, month - 1, 1);

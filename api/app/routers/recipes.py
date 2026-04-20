@@ -69,6 +69,19 @@ async def list_recipes(
     return summaries
 
 
+@router.get("/count")
+async def count_recipes(
+    archived: bool = Query(False),
+    db: AsyncSession = Depends(get_db),
+):
+    """Total recipe count (cheap — no joins)."""
+    query = select(func.count(Recipe.id))
+    if not archived:
+        query = query.where(Recipe.archived == False)
+    result = await db.execute(query)
+    return {"count": result.scalar() or 0}
+
+
 @router.get("/{recipe_id}", response_model=RecipeDetail)
 async def get_recipe(recipe_id: int, db: AsyncSession = Depends(get_db)):
     """Get full recipe details."""

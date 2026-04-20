@@ -8,7 +8,7 @@ import logging
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, case
 
 from app.database import get_db
 from app.models import Rating, Recipe, User, MealPlan
@@ -192,7 +192,7 @@ async def rating_stats(db: AsyncSession = Depends(get_db)):
             select(
                 func.count(Rating.id),
                 func.avg(Rating.stars),
-                func.sum(Rating.would_make_again.cast(int)),
+                func.sum(case((Rating.would_make_again == True, 1), else_=0)),
             ).where(Rating.user_id == user.id)
         )
         count, avg_stars, would_make_again = rating_result.one()

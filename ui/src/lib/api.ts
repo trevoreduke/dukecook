@@ -33,6 +33,7 @@ export const getRecipes = (params?: Record<string, string>) => {
   return request<any[]>(`/api/recipes${qs}`);
 };
 export const getRecipe = (id: number) => request<any>(`/api/recipes/${id}`);
+export const getRecipesCount = () => request<{ count: number }>('/api/recipes/count');
 export const createRecipe = (data: any) => request<any>('/api/recipes', { method: 'POST', body: JSON.stringify(data) });
 export const updateRecipe = (id: number, data: any) => request<any>(`/api/recipes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteRecipe = (id: number) => request<void>(`/api/recipes/${id}`, { method: 'DELETE' });

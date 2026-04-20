@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getRecipes, getWeekPlan, getRatingStats, getActiveSessions, importRecipe } from '@/lib/api';
+import { getRecipes, getRecipesCount, getWeekPlan, getRatingStats, getActiveSessions, importRecipe } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { getSuggestions, SuggestedRecipe } from '@/lib/suggested-recipes';
 
 export default function HomePage() {
   const [recipes, setRecipes] = useState<any[]>([]);
+  const [recipeCount, setRecipeCount] = useState(0);
   const [weekPlan, setWeekPlan] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
   const [activeSessions, setActiveSessions] = useState<any[]>([]);
@@ -20,11 +21,13 @@ export default function HomePage() {
   useEffect(() => {
     Promise.all([
       getRecipes({ limit: '5' }).catch(() => []),
+      getRecipesCount().catch(() => ({ count: 0 })),
       getWeekPlan().catch(() => null),
       getRatingStats().catch(() => null),
       getActiveSessions().catch(() => []),
-    ]).then(([r, w, s, a]) => {
+    ]).then(([r, c, w, s, a]) => {
       setRecipes(r);
+      setRecipeCount(c?.count ?? 0);
       setWeekPlan(w);
       setStats(s);
       setActiveSessions(a);
@@ -73,7 +76,7 @@ export default function HomePage() {
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card p-4 text-center">
-          <div className="text-3xl font-bold text-brand-600">{recipes.length > 4 ? '5+' : recipes.length}</div>
+          <div className="text-3xl font-bold text-brand-600">{recipeCount}</div>
           <div className="text-sm text-gray-500">{t('home.recipes')}</div>
         </div>
         <div className="card p-4 text-center">
