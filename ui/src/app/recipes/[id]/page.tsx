@@ -416,25 +416,28 @@ export default function RecipeDetailPage() {
             </div>
           )}
 
-          {/* Success state — show matched products with links */}
+          {/* Success state — show matched products as tap-to-add links */}
           {krogerCartResult && (
             <div className="py-2">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <p className="font-medium text-blue-800">
                   {krogerCartResult.added} {t('kroger.items')} · ~${krogerCartResult.estimated_cost?.toFixed(2)}
                 </p>
-                <a
-                  href="https://www.kroger.com/cart"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium"
+                <button
+                  onClick={() => setKrogerCartResult(null)}
+                  className="text-gray-400 hover:text-gray-600 text-sm px-2"
+                  title="Close"
                 >
-                  {t('kroger.open_cart_short')}
-                </a>
+                  ✕
+                </button>
               </div>
+              <p className="text-xs text-blue-700 mb-3">
+                Tap each item to open it on Kroger and add it to your cart. (Kroger&apos;s API
+                doesn&apos;t let third-party apps populate the visible cart directly.)
+              </p>
 
-              {/* Product list with direct Kroger links */}
-              <div className="space-y-1.5 max-h-72 overflow-y-auto mb-3">
+              {/* Product list with direct Kroger product-page links */}
+              <div className="space-y-1.5 max-h-96 overflow-y-auto mb-3">
                 {krogerCartResult.items?.map((item: any, idx: number) => (
                   <a
                     key={idx}
@@ -442,13 +445,13 @@ export default function RecipeDetailPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
-                      item.matched 
-                        ? 'bg-white border border-blue-200 hover:bg-blue-50 cursor-pointer' 
+                      item.matched
+                        ? 'bg-white border border-blue-200 hover:bg-blue-50 cursor-pointer'
                         : 'bg-red-50 border border-red-200'
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span>{item.matched ? '✅' : '❌'}</span>
+                      <span>{item.matched ? '🛒' : '❌'}</span>
                       <div className="min-w-0">
                         <div className="text-gray-500 text-xs truncate">{item.ingredient}</div>
                         {item.matched && (
@@ -473,25 +476,14 @@ export default function RecipeDetailPage() {
                 </p>
               )}
 
-              <div className="flex gap-2">
-                <a
-                  href="https://www.kroger.com/cart"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  {t('kroger.open_cart')}
-                </a>
-                <button
-                  onClick={() => setKrogerCartResult(null)}
-                  className="px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-                >
-                  ✕
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                {t('kroger.tap_item')}
-              </p>
+              <a
+                href="https://www.kroger.com/cart"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center text-xs text-blue-600 hover:text-blue-700 underline"
+              >
+                Review your Kroger cart →
+              </a>
             </div>
           )}
         </div>

@@ -78,9 +78,21 @@ async def kroger_callback(
 
 @router.get("/status")
 async def kroger_status(user_id: int = Query(1), db: AsyncSession = Depends(get_db)):
-    """Check if user has a valid Kroger connection."""
+    """Check if there's a valid Kroger connection.
+
+    Household-shared: returns connected=true if ANY user has connected.
+    """
+    # Try this user first; fall back to any token
     result = await db.execute(select(KrogerToken).where(KrogerToken.user_id == user_id))
     token = result.scalar_one_or_none()
+    shared_from = None
+    if not token:
+        result = await db.execute(
+            select(KrogerToken).order_by(KrogerToken.expires_at.desc()).limit(1)
+        )
+        token = result.scalar_one_or_none()
+        if token:
+            shared_from = token.user_id
 
     if not token:
         return {"connected": False}
@@ -90,6 +102,7 @@ async def kroger_status(user_id: int = Query(1), db: AsyncSession = Depends(get_
         "connected": True,
         "expired": expired,
         "store_id": token.store_id,
+        "shared_from_user_id": shared_from,
     }
 
     # Try to get profile email if token is valid
@@ -114,9 +127,19 @@ async def kroger_status(user_id: int = Query(1), db: AsyncSession = Depends(get_
 # ── Ensure valid user token ──
 
 async def _get_user_token(user_id: int, db: AsyncSession) -> str:
-    """Get a valid user access token, refreshing if needed."""
+    """Get a valid Kroger access token, refreshing if needed.
+
+    Household-shared: prefers the token bound to user_id, but falls back to ANY
+    connected token so the household can share one Kroger account.
+    """
     result = await db.execute(select(KrogerToken).where(KrogerToken.user_id == user_id))
     token = result.scalar_one_or_none()
+    if not token:
+        # Fall back to any token in the household
+        result = await db.execute(
+            select(KrogerToken).order_by(KrogerToken.expires_at.desc()).limit(1)
+        )
+        token = result.scalar_one_or_none()
     if not token:
         raise HTTPException(401, "Kroger not connected. Please connect first.")
 
@@ -209,37 +232,35 @@ async def add_recipe_to_cart(
     user_id: int = Query(1),
     db: AsyncSession = Depends(get_db),
 ):
-    """One-click: match ingredients + add all to Kroger cart."""
-    # Get user token
-    user_token = await _get_user_token(user_id, db)
+    """Match recipe ingredients to Kroger products. Returns per-item product
+    URLs so the user can tap each one and add to their visible Kroger cart.
 
-    # Match ingredients
+    Note: Kroger's public PUT /v1/cart/add endpoint adds items to a separate
+    "API cart" that does NOT surface in the kroger.com web cart, so we no
+    longer call it. Per-item product-page links land in the visible cart
+    correctly.
+    """
+    # Verify the user has a connected Kroger account (household-shared) so the
+    # UI can prompt for re-auth instead of silently rendering "not connected".
+    await _get_user_token(user_id, db)
+
+    # Match ingredients to products
     match_data = await match_recipe_ingredients(recipe_id, db)
     items = match_data["items"]
 
-    # Build cart items from matched products
-    cart_items = []
-    skipped = []
-    for item in items:
-        if item.get("matched") and item.get("upc"):
-            cart_items.append({"upc": item["upc"], "quantity": 1})
-        else:
-            skipped.append(item["ingredient"])
+    matched = [i for i in items if i.get("matched") and i.get("upc")]
+    skipped = [i["ingredient"] for i in items if not (i.get("matched") and i.get("upc"))]
 
-    if not cart_items:
-        raise HTTPException(400, "No products matched — nothing to add to cart")
-
-    # Try to add to cart via API (may or may not show up depending on fulfillment session)
-    cart_result = await kroger_client.add_to_cart(user_token, cart_items)
+    if not matched:
+        raise HTTPException(400, "No products matched — nothing to send to Kroger")
 
     return {
         "success": True,
-        "added": len(cart_items),
+        "added": len(matched),
         "skipped": skipped,
         "estimated_cost": match_data["estimated_cost"],
-        "message": f"Matched {len(cart_items)} items at Kroger!",
-        "api_cart_added": cart_result.get("success", False),
-        "items": items,  # Include full match data with product_url
+        "message": f"Matched {len(matched)} items at Kroger!",
+        "items": items,  # Each item has product_url for the visible cart
     }
 
 
