@@ -557,6 +557,64 @@ export default function RecipeDetailPage() {
         );
       })()}
 
+      {/* 🥕 Instacart (multi-store: Kroger, Costco, Whole Foods, Wegmans, Aldi…) */}
+      {recipe.ingredients?.length > 0 && (() => {
+        const ingredients = recipe.ingredients
+          .map((i: any) => i.ingredient_name || '')
+          .filter((n: string) => n && n.length > 1);
+        if (ingredients.length === 0) return null;
+
+        // When you have an Instacart Connect Partner ID, set NEXT_PUBLIC_INSTACART_AFFILIATE_ID
+        // and we'll append it for affiliate attribution. For now, search-link mode.
+        const affId = process.env.NEXT_PUBLIC_INSTACART_AFFILIATE_ID || '';
+        const searchUrl = (term: string) => {
+          const u = new URL('https://www.instacart.com/store/s');
+          u.searchParams.set('k', term);
+          if (affId) u.searchParams.set('utm_campaign', affId);
+          return u.toString();
+        };
+
+        return (
+          <div className="card p-5 bg-orange-50 border-orange-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-orange-800">
+                🥕 Instacart
+              </h3>
+              <span className="text-xs text-orange-600">Kroger · Costco · Wegmans · Aldi · Whole Foods · …</span>
+            </div>
+            <div className="space-y-1.5 mb-3 max-h-64 overflow-y-auto">
+              {ingredients.map((name: string, idx: number) => (
+                <a
+                  key={idx}
+                  href={searchUrl(name)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-orange-200 hover:bg-orange-100 transition-colors text-sm"
+                >
+                  <span className="text-orange-500">🔍</span>
+                  <span className="text-gray-700">{name}</span>
+                  <span className="ml-auto text-orange-400 text-xs">→</span>
+                </a>
+              ))}
+            </div>
+            <a
+              href={searchUrl(ingredients.slice(0, 5).join(' '))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+            >
+              🥕 Shop All on Instacart
+            </a>
+            <p className="text-xs text-orange-600 mt-2">
+              Instacart picks the local store that delivers to you (Kroger, Costco,
+              Whole Foods, Wegmans, Aldi, Sprouts, Sam&apos;s Club). True one-tap batch
+              cart will arrive once you sign up at instacart.com/connect/recipes
+              and add the partner ID.
+            </p>
+          </div>
+        );
+      })()}
+
       {/* Original Recipe View */}
       {showOriginal && (
         <div className="card p-5 bg-amber-50 border-amber-200">
