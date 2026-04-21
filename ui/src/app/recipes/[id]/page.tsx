@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart, archiveRecipe, unarchiveRecipe, updateRecipe, uploadRecipePhoto, addToPlan } from '@/lib/api';
+import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart, krogerCartUndo, archiveRecipe, unarchiveRecipe, updateRecipe, uploadRecipePhoto, addToPlan } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 import { useI18n } from '@/lib/i18n';
 
@@ -416,12 +416,12 @@ export default function RecipeDetailPage() {
             </div>
           )}
 
-          {/* Success state — show matched products as tap-to-add links */}
+          {/* Success state — items batch-added to Kroger pickup/delivery cart */}
           {krogerCartResult && (
             <div className="py-2">
               <div className="flex items-center justify-between mb-2">
-                <p className="font-medium text-blue-800">
-                  {krogerCartResult.added} {t('kroger.items')} · ~${krogerCartResult.estimated_cost?.toFixed(2)}
+                <p className="font-medium text-green-800">
+                  ✅ {krogerCartResult.added} items added · ~${krogerCartResult.estimated_cost?.toFixed(2)}
                 </p>
                 <button
                   onClick={() => setKrogerCartResult(null)}
@@ -432,12 +432,12 @@ export default function RecipeDetailPage() {
                 </button>
               </div>
               <p className="text-xs text-blue-700 mb-3">
-                Tap each item to open it on Kroger and add it to your cart. (Kroger&apos;s API
-                doesn&apos;t let third-party apps populate the visible cart directly.)
+                Items landed in your Kroger <b>Pickup/Delivery</b> cart. Tap any row below
+                to swap a substitution before checkout.
               </p>
 
-              {/* Product list with direct Kroger product-page links */}
-              <div className="space-y-1.5 max-h-96 overflow-y-auto mb-3">
+              {/* Product list (now informational + tap-to-substitute) */}
+              <div className="space-y-1.5 max-h-72 overflow-y-auto mb-3">
                 {krogerCartResult.items?.map((item: any, idx: number) => (
                   <a
                     key={idx}
@@ -451,7 +451,7 @@ export default function RecipeDetailPage() {
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span>{item.matched ? '🛒' : '❌'}</span>
+                      <span>{item.matched ? '✅' : '❌'}</span>
                       <div className="min-w-0">
                         <div className="text-gray-500 text-xs truncate">{item.ingredient}</div>
                         {item.matched && (
@@ -476,14 +476,37 @@ export default function RecipeDetailPage() {
                 </p>
               )}
 
-              <a
-                href="https://www.kroger.com/cart"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-center text-xs text-blue-600 hover:text-blue-700 underline"
-              >
-                Review your Kroger cart →
-              </a>
+              <div className="flex gap-2">
+                <a
+                  href="https://www.kroger.com/cart"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  🛒 Open Kroger Cart
+                </a>
+                {krogerCartResult.batch_id && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Remove these ${krogerCartResult.added} items from your Kroger cart?`)) return;
+                      try {
+                        await krogerCartUndo(krogerCartResult.batch_id, currentUser?.id || 1);
+                        setKrogerCartResult({ ...krogerCartResult, undone: true });
+                      } catch (e: any) {
+                        alert(e.message || 'Undo failed');
+                      }
+                    }}
+                    disabled={krogerCartResult.undone}
+                    className="px-4 py-2.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium disabled:opacity-50"
+                    title="Send quantity 0 for everything we just added"
+                  >
+                    {krogerCartResult.undone ? '✓ Undone' : '↩ Undo'}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Cart shown in Pickup/Delivery view. Tap Undo to remove this batch.
+              </p>
             </div>
           )}
         </div>

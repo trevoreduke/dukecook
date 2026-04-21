@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import KrogerToken, User, Recipe, RecipeIngredient, Ingredient
+from app.models import KrogerToken, User, Recipe, RecipeIngredient, Ingredient, KrogerCartAdd
 from app.services.kroger import kroger_client
 from app.config import get_settings
 
@@ -232,17 +232,13 @@ async def add_recipe_to_cart(
     user_id: int = Query(1),
     db: AsyncSession = Depends(get_db),
 ):
-    """Match recipe ingredients to Kroger products. Returns per-item product
-    URLs so the user can tap each one and add to their visible Kroger cart.
+    """Match recipe ingredients to Kroger products + bulk-add to Kroger cart.
 
-    Note: Kroger's public PUT /v1/cart/add endpoint adds items to a separate
-    "API cart" that does NOT surface in the kroger.com web cart, so we no
-    longer call it. Per-item product-page links land in the visible cart
-    correctly.
+    Note: items added via PUT /v1/cart/add land in the user's PICKUP/DELIVERY
+    cart, NOT the in-store/savings cart at kroger.com/cart. The UI directs
+    users to the delivery cart URL accordingly.
     """
-    # Verify the user has a connected Kroger account (household-shared) so the
-    # UI can prompt for re-auth instead of silently rendering "not connected".
-    await _get_user_token(user_id, db)
+    user_token = await _get_user_token(user_id, db)
 
     # Match ingredients to products
     match_data = await match_recipe_ingredients(recipe_id, db)
@@ -254,13 +250,166 @@ async def add_recipe_to_cart(
     if not matched:
         raise HTTPException(400, "No products matched — nothing to send to Kroger")
 
+    # Bulk-add via Kroger API. Items appear in the Pickup/Delivery cart.
+    cart_items = [{"upc": i["upc"], "quantity": 1} for i in matched]
+    cart_result = await kroger_client.add_to_cart(user_token, cart_items)
+    succeeded = bool(cart_result.get("success", False))
+
+    # Audit log so we can undo this batch (or replay quantity=0 to clear later).
+    log_items = [
+        {"upc": i["upc"], "quantity": 1, "description": i.get("description", "")}
+        for i in matched
+    ]
+    log_row = KrogerCartAdd(
+        user_id=user_id,
+        recipe_id=recipe_id,
+        items=log_items,
+        succeeded=succeeded,
+    )
+    db.add(log_row)
+    await db.commit()
+    await db.refresh(log_row)
+
     return {
         "success": True,
         "added": len(matched),
         "skipped": skipped,
         "estimated_cost": match_data["estimated_cost"],
-        "message": f"Matched {len(matched)} items at Kroger!",
-        "items": items,  # Each item has product_url for the visible cart
+        "message": f"Added {len(matched)} items to your Kroger pickup/delivery cart!",
+        "api_cart_added": succeeded,
+        "items": items,  # Each item also has product_url in case the user wants to substitute
+        "batch_id": log_row.id,  # UI uses this for the Undo button
+    }
+
+
+# ── Undo / Clear ──
+
+@router.get("/cart/history")
+async def kroger_cart_history(
+    user_id: int = Query(1),
+    limit: int = Query(20, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """Recent batches we've sent to Kroger. Newest first."""
+    result = await db.execute(
+        select(KrogerCartAdd)
+        .order_by(KrogerCartAdd.created_at.desc())
+        .limit(limit)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "user_id": r.user_id,
+            "recipe_id": r.recipe_id,
+            "item_count": len(r.items or []),
+            "succeeded": r.succeeded,
+            "undone": r.undone,
+            "undone_at": r.undone_at.isoformat() if r.undone_at else None,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "items": r.items,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/cart/undo/{batch_id}")
+async def kroger_cart_undo(
+    batch_id: int,
+    user_id: int = Query(1),
+    db: AsyncSession = Depends(get_db),
+):
+    """Undo a single previously-recorded cart-add batch.
+
+    Sends each UPC with quantity 0 so it disappears from the user's
+    pickup/delivery cart.
+    """
+    result = await db.execute(select(KrogerCartAdd).where(KrogerCartAdd.id == batch_id))
+    batch = result.scalar_one_or_none()
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+    if batch.undone:
+        return {"success": True, "already_undone": True, "items": len(batch.items or [])}
+
+    user_token = await _get_user_token(user_id, db)
+
+    # Send quantity 0 — Kroger treats this as "remove from cart"
+    zero_items = [{"upc": it["upc"], "quantity": 0} for it in (batch.items or []) if it.get("upc")]
+    if not zero_items:
+        raise HTTPException(400, "Batch has no items to undo")
+
+    cart_result = await kroger_client.add_to_cart(user_token, zero_items)
+    if cart_result.get("success"):
+        batch.undone = True
+        batch.undone_at = datetime.utcnow()
+        await db.commit()
+        return {"success": True, "items_removed": len(zero_items), "batch_id": batch_id}
+
+    raise HTTPException(
+        500,
+        f"Kroger returned status {cart_result.get('status')} on undo: {cart_result.get('body', '')[:200]}",
+    )
+
+
+@router.post("/cart/clear-all")
+async def kroger_cart_clear_all(
+    user_id: int = Query(1),
+    only_not_undone: bool = Query(True, description="If true, skip batches we've already undone"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Replay quantity=0 across every UPC we've ever sent to this household's
+    Kroger cart. The big-cart rescue button.
+    """
+    user_token = await _get_user_token(user_id, db)
+
+    query = select(KrogerCartAdd).order_by(KrogerCartAdd.created_at)
+    if only_not_undone:
+        query = query.where(KrogerCartAdd.undone == False)
+    result = await db.execute(query)
+    batches = result.scalars().all()
+
+    if not batches:
+        return {"success": True, "batches": 0, "items_removed": 0, "message": "Nothing logged to clear"}
+
+    # Dedup UPCs across batches — sending the same UPC twice is wasteful
+    seen: set[str] = set()
+    zero_items = []
+    for b in batches:
+        for it in (b.items or []):
+            upc = it.get("upc")
+            if upc and upc not in seen:
+                seen.add(upc)
+                zero_items.append({"upc": upc, "quantity": 0})
+
+    if not zero_items:
+        return {"success": True, "batches": len(batches), "items_removed": 0}
+
+    # Kroger's API accepts large item lists, but be defensive — chunk by 100
+    chunks_ok = 0
+    chunks_fail = 0
+    for i in range(0, len(zero_items), 100):
+        chunk = zero_items[i : i + 100]
+        cart_result = await kroger_client.add_to_cart(user_token, chunk)
+        if cart_result.get("success"):
+            chunks_ok += 1
+        else:
+            chunks_fail += 1
+            logger.warning(f"clear-all chunk {i}-{i+len(chunk)} failed: {cart_result.get('body','')[:200]}")
+
+    # Mark all batches as undone if every chunk succeeded
+    if chunks_fail == 0:
+        now = datetime.utcnow()
+        for b in batches:
+            b.undone = True
+            b.undone_at = now
+        await db.commit()
+
+    return {
+        "success": chunks_fail == 0,
+        "batches": len(batches),
+        "items_removed": len(zero_items),
+        "chunks_ok": chunks_ok,
+        "chunks_failed": chunks_fail,
     }
 
 

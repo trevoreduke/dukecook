@@ -419,6 +419,24 @@ class KrogerToken(Base):
     user = relationship("User")
 
 
+class KrogerCartAdd(Base):
+    """Audit log of every batch we send to Kroger's cart API.
+
+    Lets us undo a single recipe-add, or replay quantity=0 across every batch
+    to nuke a cart that's gotten out of hand.
+    """
+    __tablename__ = "kroger_cart_adds"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # which DukeCook user triggered
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="SET NULL"), nullable=True)
+    items = Column(JSON, nullable=False)  # [{"upc": "...", "quantity": N, "description": "..."}]
+    succeeded = Column(Boolean, default=True)
+    undone = Column(Boolean, default=False, index=True)  # set true after a successful undo
+    undone_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), index=True)
+
+
 # ---------- Import Log ----------
 
 class ImportLog(Base):

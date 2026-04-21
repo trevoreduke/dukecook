@@ -1,19 +1,19 @@
 'use client';
 
 import { useState, useEffect, useContext } from 'react';
-import { getRules, createRule, updateRule, deleteRule, getPantryStaples, getTasteProfile, compareTastes, getTasteInsights, parseNaturalRule } from '@/lib/api';
+import { getRules, createRule, updateRule, deleteRule, getPantryStaples, getTasteProfile, compareTastes, getTasteInsights, parseNaturalRule, krogerCartHistory, krogerCartUndo, krogerCartClearAll } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 
 export default function SettingsPage() {
   const { currentUser, users } = useContext(UserContext);
-  const [tab, setTab] = useState<'rules' | 'pantry' | 'taste'>('rules');
+  const [tab, setTab] = useState<'rules' | 'pantry' | 'taste' | 'kroger'>('rules');
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold">⚙️ Settings</h1>
 
-      <div className="flex gap-2">
-        {(['rules', 'pantry', 'taste'] as const).map(t => (
+      <div className="flex gap-2 flex-wrap">
+        {(['rules', 'pantry', 'taste', 'kroger'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -21,7 +21,7 @@ export default function SettingsPage() {
               tab === t ? 'bg-brand-500 text-white' : 'bg-gray-100 text-gray-600'
             }`}
           >
-            {t === 'rules' ? '📏 Rules' : t === 'pantry' ? '🥫 Pantry' : '🧠 Taste'}
+            {t === 'rules' ? '📏 Rules' : t === 'pantry' ? '🥫 Pantry' : t === 'taste' ? '🧠 Taste' : '🛒 Kroger'}
           </button>
         ))}
       </div>
@@ -29,6 +29,131 @@ export default function SettingsPage() {
       {tab === 'rules' && <RulesTab />}
       {tab === 'pantry' && <PantryTab />}
       {tab === 'taste' && <TasteTab currentUser={currentUser} users={users} />}
+      {tab === 'kroger' && <KrogerTab currentUser={currentUser} />}
+    </div>
+  );
+}
+
+// ---------- Kroger ----------
+function KrogerTab({ currentUser }: { currentUser: any }) {
+  const [history, setHistory] = useState<any[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const refresh = async () => {
+    try {
+      const data = await krogerCartHistory(currentUser?.id || 1, 50);
+      setHistory(data);
+    } catch (e: any) {
+      setMsg(e.message || 'Failed to load history');
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+
+  const handleUndo = async (batchId: number, count: number) => {
+    if (!confirm(`Remove ${count} items from your Kroger cart?`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await krogerCartUndo(batchId, currentUser?.id || 1);
+      setMsg(`✓ Removed ${count} items from your Kroger cart`);
+      await refresh();
+    } catch (e: any) {
+      setMsg(`✗ ${e.message || 'Undo failed'}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!confirm('Remove EVERY item we have ever sent to your Kroger cart? Sends quantity=0 for every UPC we have logged. (Items added to your cart outside DukeCook are unaffected.)')) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await krogerCartClearAll(currentUser?.id || 1, false);
+      setMsg(`✓ Cleared ${r.items_removed} unique items across ${r.batches} batches`);
+      await refresh();
+    } catch (e: any) {
+      setMsg(`✗ ${e.message || 'Clear-all failed'}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (history === null) return <div className="text-gray-400">Loading…</div>;
+
+  const activeBatches = history.filter(h => !h.undone);
+  const activeItems = activeBatches.reduce((n, h) => n + (h.item_count || 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="card p-4 bg-blue-50 border-blue-200">
+        <h3 className="font-semibold mb-2">🛒 Kroger Cart Audit</h3>
+        <p className="text-sm text-gray-700 mb-3">
+          Every batch DukeCook has sent to your Kroger pickup/delivery cart. Tap{' '}
+          <b>Undo</b> on any batch to remove just those items, or{' '}
+          <b>Clear Everything</b> to wipe the whole audit log via API.
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-sm">
+            <b>{activeBatches.length}</b> live batches · <b>{activeItems}</b> items
+          </span>
+          <button
+            onClick={handleClearAll}
+            disabled={busy || activeBatches.length === 0}
+            className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 text-sm font-medium"
+          >
+            🗑 Clear Everything We&apos;ve Sent
+          </button>
+          <button
+            onClick={refresh}
+            disabled={busy}
+            className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 text-sm"
+          >
+            ↻ Refresh
+          </button>
+        </div>
+        {msg && <p className="mt-2 text-sm">{msg}</p>}
+      </div>
+
+      <div className="card divide-y divide-gray-100">
+        {history.length === 0 && (
+          <div className="p-6 text-center text-gray-400 text-sm">
+            No cart sends logged yet.
+          </div>
+        )}
+        {history.map((b) => (
+          <div key={b.id} className={`p-3 flex items-start gap-3 ${b.undone ? 'opacity-50' : ''}`}>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 text-sm flex-wrap">
+                <span className="font-medium">Batch #{b.id}</span>
+                {b.recipe_id && <span className="text-gray-500">· recipe {b.recipe_id}</span>}
+                {b.undone && <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">undone</span>}
+                {!b.succeeded && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">api failed</span>}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {new Date(b.created_at).toLocaleString()} · {b.item_count} items
+              </div>
+              {b.items?.length > 0 && (
+                <div className="text-xs text-gray-600 mt-1 truncate">
+                  {b.items.slice(0, 3).map((it: any) => it.description || it.upc).join(', ')}
+                  {b.items.length > 3 && ` +${b.items.length - 3} more`}
+                </div>
+              )}
+            </div>
+            {!b.undone && (
+              <button
+                onClick={() => handleUndo(b.id, b.item_count)}
+                disabled={busy}
+                className="px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200 disabled:opacity-50 shrink-0"
+              >
+                ↩ Undo
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

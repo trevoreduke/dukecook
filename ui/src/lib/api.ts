@@ -34,6 +34,14 @@ export const getRecipes = (params?: Record<string, string>) => {
 };
 export const getRecipe = (id: number) => request<any>(`/api/recipes/${id}`);
 export const getRecipesCount = () => request<{ count: number }>('/api/recipes/count');
+
+// ---------- Kroger ----------
+export const krogerCartHistory = (userId?: number, limit = 20) =>
+  request<any[]>(`/api/kroger/cart/history?user_id=${userId || 1}&limit=${limit}`);
+export const krogerCartUndo = (batchId: number, userId?: number) =>
+  request<any>(`/api/kroger/cart/undo/${batchId}?user_id=${userId || 1}`, { method: 'POST' });
+export const krogerCartClearAll = (userId?: number, includeUndone = false) =>
+  request<any>(`/api/kroger/cart/clear-all?user_id=${userId || 1}&only_not_undone=${!includeUndone}`, { method: 'POST' });
 export const createRecipe = (data: any) => request<any>('/api/recipes', { method: 'POST', body: JSON.stringify(data) });
 export const updateRecipe = (id: number, data: any) => request<any>(`/api/recipes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteRecipe = (id: number) => request<void>(`/api/recipes/${id}`, { method: 'DELETE' });
