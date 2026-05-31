@@ -13,31 +13,13 @@ from app.config import get_settings
 logger = logging.getLogger("dukecook.services.ai_extractor")
 
 
-async def extract_recipe_from_html(html: str, url: str) -> Optional[dict]:
-    """Use Claude to extract recipe data from raw HTML.
+# Static instruction block for HTML extraction. Kept as a module-level constant
+# (with no interpolation) so it can be sent as its own cache_control=ephemeral
+# block — the repeated multi-KB instruction prefix then gets prompt-cached across
+# the many calls made by reimport_all.py instead of being re-billed each time.
+_HTML_EXTRACTION_INSTRUCTIONS = """Extract the recipe from this webpage HTML. Return a JSON object with these fields:
 
-    Returns a dict matching our recipe schema, or None on failure.
-    """
-    settings = get_settings()
-    if not settings.anthropic_api_key:
-        logger.error("ANTHROPIC_API_KEY not configured — cannot extract recipe from HTML")
-        return None
-
-    logger.info(f"AI extracting recipe from URL: {url}", extra={
-        "extra_data": {"url": url, "html_length": len(html)}
-    })
-
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
-    # Truncate HTML to avoid token limits
-    max_html = 50000
-    truncated_html = html[:max_html] if len(html) > max_html else html
-    if len(html) > max_html:
-        logger.info(f"Truncated HTML from {len(html)} to {max_html} chars")
-
-    prompt = f"""Extract the recipe from this webpage HTML. Return a JSON object with these fields:
-
-{{
+{
   "title": "Recipe title",
   "description": "Full description of the dish — include what makes it special, flavor notes, etc.",
   "prep_time_min": 15,
@@ -49,15 +31,15 @@ async def extract_recipe_from_html(html: str, url: str) -> Optional[dict]:
   "image_url": "URL of the main recipe image",
   "notes": "All tips, author notes, variations, make-ahead instructions, storage tips, serving suggestions — everything beyond the core recipe",
   "ingredients": [
-    {{"raw_text": "2 cups all-purpose flour", "quantity": 2, "unit": "cups", "name": "all-purpose flour", "preparation": "", "group": ""}},
-    {{"raw_text": "1 lb chicken breast, diced", "quantity": 1, "unit": "lb", "name": "chicken breast", "preparation": "diced", "group": ""}}
+    {"raw_text": "2 cups all-purpose flour", "quantity": 2, "unit": "cups", "name": "all-purpose flour", "preparation": "", "group": ""},
+    {"raw_text": "1 lb chicken breast, diced", "quantity": 1, "unit": "lb", "name": "chicken breast", "preparation": "diced", "group": ""}
   ],
   "steps": [
-    {{"instruction": "Preheat oven to 375°F.", "duration_minutes": null, "timer_label": ""}},
-    {{"instruction": "In a large skillet, heat olive oil over medium-high heat. Sear chicken for 3 minutes per side until golden brown. Don't move the chicken while it sears — you want a good crust.", "duration_minutes": 6, "timer_label": "Sear chicken"}}
+    {"instruction": "Preheat oven to 375°F.", "duration_minutes": null, "timer_label": ""},
+    {"instruction": "In a large skillet, heat olive oil over medium-high heat. Sear chicken for 3 minutes per side until golden brown. Don't move the chicken while it sears — you want a good crust.", "duration_minutes": 6, "timer_label": "Sear chicken"}
   ],
   "tags": ["italian", "chicken", "easy", "weeknight"]
-}}
+}
 
 CRITICAL RULES — TRANSCRIBE, DO NOT REWRITE:
 
@@ -91,18 +73,54 @@ OTHER:
 
 SELF-CHECK BEFORE RESPONDING:
 - Count the numbered/bulleted steps in the source. Your "steps" array length must match (within ±1 if the source uses sub-bullets).
-- Reread your steps. If any source detail is missing, add it back before returning.
+- Reread your steps. If any source detail is missing, add it back before returning."""
 
-URL: {url}
 
-HTML:
-{truncated_html}"""
+async def extract_recipe_from_html(html: str, url: str) -> Optional[dict]:
+    """Use Claude to extract recipe data from raw HTML.
+
+    Returns a dict matching our recipe schema, or None on failure.
+    """
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        logger.error("ANTHROPIC_API_KEY not configured — cannot extract recipe from HTML")
+        return None
+
+    logger.info(f"AI extracting recipe from URL: {url}", extra={
+        "extra_data": {"url": url, "html_length": len(html)}
+    })
+
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    # Truncate HTML to avoid token limits
+    max_html = 50000
+    truncated_html = html[:max_html] if len(html) > max_html else html
+    if len(html) > max_html:
+        logger.info(f"Truncated HTML from {len(html)} to {max_html} chars")
+
+    # The static instruction block is sent as its own cached content block; the
+    # per-recipe URL + HTML follows in a separate block so the cacheable prefix
+    # stays byte-identical across calls.
+    page_content = f"URL: {url}\n\nHTML:\n{truncated_html}"
 
     try:
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=16384,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": _HTML_EXTRACTION_INSTRUCTIONS,
+                        "cache_control": {"type": "ephemeral"},
+                    },
+                    {
+                        "type": "text",
+                        "text": page_content,
+                    },
+                ],
+            }],
         )
 
         text = response.content[0].text.strip()
@@ -282,6 +300,10 @@ SELF-CHECK BEFORE RESPONDING:
 - Reread your steps. If any source detail is missing, add it back before returning."""
 
     try:
+        # Static instruction text goes first (and is marked for prompt caching) so
+        # the cacheable prefix is byte-identical across calls; the per-recipe image
+        # follows. This lets reimport_all.py's repeated image extractions hit the
+        # cached instruction block instead of re-billing it every time.
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=16384,
@@ -289,16 +311,17 @@ SELF-CHECK BEFORE RESPONDING:
                 "role": "user",
                 "content": [
                     {
+                        "type": "text",
+                        "text": prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    },
+                    {
                         "type": "image",
                         "source": {
                             "type": "base64",
                             "media_type": media_type,
                             "data": encoded,
                         },
-                    },
-                    {
-                        "type": "text",
-                        "text": prompt,
                     },
                 ],
             }],

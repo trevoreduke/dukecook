@@ -46,7 +46,7 @@ async def init_db():
             SwipeSession, SwipeCard, SwipeMatch,
             TasteProfile, TastePreference, CookingHistory,
             ShoppingList, ShoppingItem, PantryStaple,
-            CalendarEvent, ImportLog, KrogerToken,
+            CalendarEvent, ImportLog, KrogerToken, KrogerCartAdd,
             GuestMenu, GuestMenuItem, GuestVote, MenuView, RecipePhoto,
         )
         await conn.run_sync(Base.metadata.create_all)
@@ -69,6 +69,9 @@ async def init_db():
             async with engine.begin() as conn:
                 await conn.execute(text(sql))
                 logger.info("Migration applied: %s", sql)
-        except Exception:
-            pass  # Column already exists
+        except Exception as e:
+            # Almost always "column already exists" on an already-migrated DB,
+            # which is benign — but log at debug so a genuinely failing ALTER
+            # (bad SQL, missing table) is no longer completely invisible.
+            logger.debug("Migration skipped (likely already applied): %s — %s", sql, e)
     logger.info("Database tables ready")
