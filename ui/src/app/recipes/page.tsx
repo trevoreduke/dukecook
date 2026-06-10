@@ -37,7 +37,10 @@ export default function RecipesPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">📖 Recipes</h1>
-        <Link href="/recipes/import" className="btn-primary">+ Import</Link>
+        <div className="flex gap-2">
+          <Link href="/recipes/new" className="btn-secondary">✏️ New</Link>
+          <Link href="/recipes/import" className="btn-primary">+ Import</Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -77,8 +80,11 @@ export default function RecipesPage() {
         <div className="card p-8 text-center">
           <div className="text-4xl mb-3">📭</div>
           <h3 className="text-lg font-medium mb-2">No recipes yet!</h3>
-          <p className="text-gray-500 mb-4">Import your first recipe to get started.</p>
-          <Link href="/recipes/import" className="btn-primary">Import a Recipe</Link>
+          <p className="text-gray-500 mb-4">Import a recipe or enter one manually.</p>
+          <div className="flex gap-2 justify-center">
+            <Link href="/recipes/import" className="btn-primary">Import a Recipe</Link>
+            <Link href="/recipes/new" className="btn-secondary">Enter Manually</Link>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

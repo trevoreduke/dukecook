@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useContext, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { importRecipe, bulkImport, importFromPhoto } from '@/lib/api';
 import { UserContext } from '@/lib/user-context';
 
@@ -14,7 +15,10 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold">📥 Import Recipes</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">📥 Import Recipes</h1>
+        <Link href="/recipes/new" className="btn-secondary">✏️ Enter Manually</Link>
+      </div>
 
       {/* Mode Toggle */}
       <div className="flex gap-2">
