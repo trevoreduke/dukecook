@@ -141,7 +141,7 @@ export default function StatsPage() {
         </div>
         <div className="flex items-end gap-[3px] h-28">
           {timeline.map((w) => (
-            <div key={w.week_of} className="flex-1 flex flex-col justify-end group relative">
+            <div key={w.week_of} className="flex-1 h-full flex flex-col justify-end group relative">
               <div
                 className={`rounded-t ${w.cooks > 0 ? 'bg-brand-400 group-hover:bg-brand-600' : 'bg-gray-100'}`}
                 style={{ height: `${Math.max(4, (w.cooks / maxWeek) * 100)}%` }}
