@@ -210,6 +210,9 @@ async def can_cook(db: AsyncSession = Depends(get_db)):
         return {"ready": [], "close": [], "pantry_count": 0}
 
     have_tokens = [_tokens(p.name) for p in pantry] + [_tokens(s.name) for s in staples]
+    # Things nobody keeps an inventory of — never report these as "missing"
+    # ("Caramel Sauce — just need: water" was a real result).
+    have_tokens += [{"water"}, {"ice"}, {"ice", "water"}, {"ice", "cube"}]
     have_tokens = [t for t in have_tokens if t]
 
     recipes = (
