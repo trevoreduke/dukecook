@@ -48,6 +48,7 @@ async def init_db():
             ShoppingList, ShoppingItem, PantryStaple,
             CalendarEvent, ImportLog, KrogerToken, KrogerCartAdd,
             GuestMenu, GuestMenuItem, GuestVote, MenuView, RecipePhoto,
+            PantryItem, Collection, CollectionRecipe,
         )
         await conn.run_sync(Base.metadata.create_all)
 

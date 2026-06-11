@@ -474,3 +474,79 @@ Be specific, friendly, and reference actual data. Return ONLY the JSON array."""
     except Exception as e:
         logger.error(f"Taste insight generation failed: {e}", exc_info=True)
         return []
+
+
+# ---------- Pantry photo inventory (Pantry Mode, DESIGN.md §3.2) ----------
+
+_PANTRY_SCAN_INSTRUCTIONS = """You are inventorying a home kitchen from a photo of a fridge, freezer, pantry, or counter.
+
+List every distinct FOOD ITEM you can identify. Return ONLY a JSON array:
+
+[
+  {
+    "name": "chicken thighs",
+    "category": "meat",
+    "quantity_text": "1 package",
+    "confidence": 0.9
+  }
+]
+
+Rules:
+- name: the generic grocery name, lowercase, singular-ish ("cherry tomatoes" not "a container of cherry tomatoes"). No brands unless the brand IS the item (e.g. "sriracha").
+- category: one of produce, dairy, meat, pantry, spice, frozen, bakery, other.
+- quantity_text: a short human amount ("2", "half a bag", "almost out") — empty string if unclear.
+- confidence: 0.0-1.0 — how sure you are the item is what you say it is.
+- Skip non-food (foil, containers you can't see into, cleaning products).
+- Skip condiment-cap clutter you can't actually identify; do NOT guess wildly.
+- Deduplicate: one row per item type.
+- Return ONLY the JSON array, no other text."""
+
+
+async def extract_pantry_from_image(image_data: bytes, media_type: str) -> Optional[list[dict]]:
+    """Inventory a fridge/pantry photo → [{name, category, quantity_text, confidence}]."""
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        logger.error("ANTHROPIC_API_KEY not configured — cannot scan pantry photo")
+        return None
+
+    import base64
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    image_data, media_type = _compress_image_for_api(image_data, media_type)
+    encoded = base64.standard_b64encode(image_data).decode("utf-8")
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": _PANTRY_SCAN_INSTRUCTIONS,
+                        "cache_control": {"type": "ephemeral"},
+                    },
+                    {
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": media_type, "data": encoded},
+                    },
+                ],
+            }],
+        )
+        text = response.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1]
+            text = text[: text.rfind("```")] if "```" in text else text
+            text = text.strip()
+        items = json.loads(text)
+        if not isinstance(items, list):
+            return None
+        logger.info(f"Pantry scan found {len(items)} items", extra={"extra_data": {
+            "count": len(items),
+            "tokens_in": response.usage.input_tokens,
+            "tokens_out": response.usage.output_tokens,
+        }})
+        return items
+    except Exception as e:
+        logger.error(f"Pantry photo scan failed: {e}", exc_info=True)
+        return None

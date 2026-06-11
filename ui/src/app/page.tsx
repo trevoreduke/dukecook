@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getRecipes, getRecipesCount, getWeekPlan, getRatingStats, getActiveSessions, importRecipe } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { getSuggestions, SuggestedRecipe } from '@/lib/suggested-recipes';
+import SurpriseMe from '@/components/SurpriseMe';
 
 export default function HomePage() {
   const [recipes, setRecipes] = useState<any[]>([]);
@@ -16,6 +17,7 @@ export default function HomePage() {
   const [suggestions, setSuggestions] = useState<SuggestedRecipe[]>([]);
   const [importingUrl, setImportingUrl] = useState<string | null>(null);
   const [importedUrls, setImportedUrls] = useState<Set<string>>(new Set());
+  const [surpriseOpen, setSurpriseOpen] = useState(false);
   const { t, locale } = useI18n();
 
   useEffect(() => {
@@ -228,7 +230,12 @@ export default function HomePage() {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <button onClick={() => setSurpriseOpen(true)}
+          className="card p-4 text-center hover:shadow-md transition-shadow border-2 border-dashed border-brand-200 bg-brand-50/50">
+          <div className="text-2xl mb-1">🎲</div>
+          <div className="text-sm font-medium">{locale === 'es' ? '¡Sorpréndeme!' : 'Surprise Me!'}</div>
+        </button>
         <Link href="/recipes/import" className="card p-4 text-center hover:shadow-md transition-shadow">
           <div className="text-2xl mb-1">📥</div>
           <div className="text-sm font-medium">{t('home.import_recipe')}</div>
@@ -246,6 +253,8 @@ export default function HomePage() {
           <div className="text-sm font-medium">{t('home.shopping_list')}</div>
         </Link>
       </div>
+
+      <SurpriseMe open={surpriseOpen} onClose={() => setSurpriseOpen(false)} />
 
       {/* Recent Recipes */}
       {recipes.length > 0 && (

@@ -4,6 +4,7 @@ import { useState, useEffect, useContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getRecipe, deleteRecipe, createRating, getKrogerStatus, matchRecipeToKroger, addRecipeToKrogerCart, krogerCartUndo, archiveRecipe, unarchiveRecipe, updateRecipe, uploadRecipePhoto, addToPlan } from '@/lib/api';
+import CollectionPicker from '@/components/CollectionPicker';
 import { UserContext } from '@/lib/user-context';
 import { useI18n } from '@/lib/i18n';
 
@@ -244,6 +245,7 @@ export default function RecipeDetailPage() {
         <button onClick={() => setShowRating(!showRating)} className="btn-secondary">
           ⭐ Rate
         </button>
+        <CollectionPicker recipeId={recipe.id} />
         {(recipe.original_text || recipe.source_url) && (
           <button
             onClick={() => setShowOriginal(!showOriginal)}

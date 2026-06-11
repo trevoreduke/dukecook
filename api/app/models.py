@@ -378,6 +378,65 @@ class PantryStaple(Base):
     category = Column(String(50), default="pantry")
 
 
+class PantryItem(Base):
+    """Actual current pantry/fridge inventory (vs PantryStaple = assumed-always-
+    stocked basics). Rows come from manual adds or AI photo scans."""
+    __tablename__ = "pantry_items"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    category = Column(String(50), default="other")  # produce, dairy, meat, pantry, spice, frozen, bakery, other
+    quantity_text = Column(String(100), default="")  # "half a bag", "2", "almost out"
+    source = Column(String(20), default="manual")  # manual, photo
+    confidence = Column(Float, nullable=True)  # photo-scan confidence 0-1, null for manual
+    added_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_pantry_item_name"),
+        Index("ix_pantry_items_category", "category"),
+    )
+
+
+# ---------- Collections ----------
+
+class Collection(Base):
+    """Themed recipe groupings — 'Date Night', 'Under 30 Minutes', etc.
+    slug enables read-only public sharing at /c/<slug> (guest-menu pattern)."""
+    __tablename__ = "collections"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    emoji = Column(String(10), default="📚")
+    description = Column(Text, default="")
+    slug = Column(String(200), unique=True, nullable=False, index=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    recipes = relationship(
+        "CollectionRecipe", back_populates="collection",
+        cascade="all, delete-orphan", order_by="CollectionRecipe.sort_order",
+    )
+
+
+class CollectionRecipe(Base):
+    __tablename__ = "collection_recipes"
+
+    id = Column(Integer, primary_key=True)
+    collection_id = Column(Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=False)
+    recipe_id = Column(Integer, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False)
+    sort_order = Column(Integer, default=0)
+    added_at = Column(DateTime, server_default=func.now())
+
+    collection = relationship("Collection", back_populates="recipes")
+    recipe = relationship("Recipe")
+
+    __table_args__ = (
+        UniqueConstraint("collection_id", "recipe_id", name="uq_collection_recipe"),
+    )
+
+
 # ---------- Calendar ----------
 
 class CalendarEvent(Base):

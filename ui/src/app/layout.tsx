@@ -16,6 +16,9 @@ const NAV_ITEMS = [
   { href: '/planner', label: '📅', titleKey: 'nav.planner' },
   { href: '/swipe', label: '🔥', titleKey: 'nav.swipe' },
   { href: '/shopping', label: '🛒', titleKey: 'nav.shopping' },
+  { href: '/pantry', label: '🥫', titleKey: 'nav.pantry' },
+  { href: '/collections', label: '📚', titleKey: 'nav.collections' },
+  { href: '/stats', label: '📈', titleKey: 'nav.stats' },
   { href: '/menus', label: '🎉', titleKey: 'nav.menus' },
   { href: '/settings', label: '⚙️', titleKey: 'nav.settings' },
   { href: '/guide', label: '❓', titleKey: 'nav.guide' },
@@ -46,8 +49,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useI18n();
 
-  // Public guest menu pages — skip the entire app shell
-  if (pathname.startsWith('/m/')) {
+  // Public share pages (guest menus, shared collections) — skip the app shell
+  if (pathname.startsWith('/m/') || pathname.startsWith('/c/')) {
     return <>{children}</>;
   }
 

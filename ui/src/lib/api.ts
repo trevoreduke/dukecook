@@ -189,3 +189,48 @@ export const submitGuestVote = (slug: string, data: any) =>
 export const getGuestVotes = (slug: string, guestName: string) =>
   request<any>(`/api/guest-menus/public/${slug}/votes/${encodeURIComponent(guestName)}`);
 export const getMenuViews = (id: number) => request<any>(`/api/guest-menus/${id}/views`);
+
+// ---------- Stats (DESIGN.md 3.5) ----------
+export const getStatsOverview = (days = 365) => request<any>(`/api/stats/overview?days=${days}`);
+export const getStatsTimeline = (weeks = 26) => request<any[]>(`/api/stats/timeline?weeks=${weeks}`);
+export const getStatsProteins = (days = 90) => request<any[]>(`/api/stats/proteins?days=${days}`);
+export const getStatsCuisines = (days = 90) => request<any[]>(`/api/stats/cuisines?days=${days}`);
+export const getMostCooked = (limit = 10) => request<any[]>(`/api/stats/most-cooked?limit=${limit}`);
+export const getForgottenFavorites = () => request<any[]>('/api/stats/forgotten-favorites');
+
+// ---------- Pantry (DESIGN.md 3.2) ----------
+export const getPantry = () => request<any[]>('/api/pantry');
+export const addPantryItem = (data: { name: string; category?: string; quantity_text?: string }) =>
+  request<any>('/api/pantry', { method: 'POST', body: JSON.stringify(data) });
+export const updatePantryItem = (id: number, data: any) =>
+  request<any>(`/api/pantry/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deletePantryItem = (id: number) => request<void>(`/api/pantry/${id}`, { method: 'DELETE' });
+export const clearPantry = () => request<any>('/api/pantry/clear', { method: 'POST' });
+export const getCanCook = () => request<any>('/api/pantry/can-cook');
+export const scanPantryPhoto = async (file: File): Promise<any> => {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/pantry/photo', { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  return res.json();
+};
+
+// ---------- Collections (DESIGN.md 3.3) ----------
+export const getCollections = () => request<any[]>('/api/collections');
+export const createCollection = (data: { name: string; emoji?: string; description?: string }) =>
+  request<any>('/api/collections', { method: 'POST', body: JSON.stringify(data) });
+export const getCollection = (id: number) => request<any>(`/api/collections/${id}`);
+export const updateCollection = (id: number, data: any) =>
+  request<any>(`/api/collections/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteCollection = (id: number) => request<void>(`/api/collections/${id}`, { method: 'DELETE' });
+export const addRecipeToCollection = (collectionId: number, recipeId: number) =>
+  request<any>(`/api/collections/${collectionId}/recipes/${recipeId}`, { method: 'POST' });
+export const removeRecipeFromCollection = (collectionId: number, recipeId: number) =>
+  request<void>(`/api/collections/${collectionId}/recipes/${recipeId}`, { method: 'DELETE' });
+export const getRecipeMemberships = (recipeId: number) =>
+  request<{ collection_ids: number[] }>(`/api/collections/recipe/${recipeId}/memberships`);
+export const getSharedCollection = (slug: string) => request<any>(`/api/collections/shared/${slug}`);
+
+// ---------- Surprise Me (DESIGN.md 3.4) ----------
+export const surpriseMe = (mode: 'favorites' | 'new' | 'similar', opts?: { recipe_id?: number; exclude_ids?: number[] }) =>
+  request<any>('/api/surprise', { method: 'POST', body: JSON.stringify({ mode, ...opts }) });
