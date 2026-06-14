@@ -11,6 +11,7 @@ const translations: Record<string, Record<Locale, string>> = {
   'nav.recipes': { en: 'Recipes', es: 'Recetas' },
   'nav.import': { en: 'Import', es: 'Importar' },
   'nav.planner': { en: 'Planner', es: 'Planificador' },
+  'nav.rate': { en: 'Rate', es: 'Calificar' },
   'nav.swipe': { en: 'Swipe', es: 'Deslizar' },
   'nav.shopping': { en: 'Shopping', es: 'Compras' },
   'nav.settings': { en: 'Settings', es: 'Ajustes' },

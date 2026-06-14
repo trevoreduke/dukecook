@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/recipes', label: '📖', titleKey: 'nav.recipes' },
   { href: '/recipes/import', label: '📥', titleKey: 'nav.import' },
   { href: '/planner', label: '📅', titleKey: 'nav.planner' },
+  { href: '/rate', label: '⭐', titleKey: 'nav.rate' },
   { href: '/swipe', label: '🔥', titleKey: 'nav.swipe' },
   { href: '/shopping', label: '🛒', titleKey: 'nav.shopping' },
   { href: '/pantry', label: '🥫', titleKey: 'nav.pantry' },

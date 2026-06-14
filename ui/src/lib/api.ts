@@ -131,6 +131,7 @@ export const getActiveSessions = () => request<any[]>('/api/swipe/sessions/activ
 
 // ---------- Ratings ----------
 export const createRating = (data: any) => request<any>('/api/ratings', { method: 'POST', body: JSON.stringify(data) });
+export const getPendingRatings = (userId: number) => request<{ pending: any[] }>(`/api/ratings/pending?user_id=${userId}`);
 export const getRecipeRatings = (recipeId: number) => request<any[]>(`/api/ratings/recipe/${recipeId}`);
 export const getRatingHistory = (userId?: number, limit?: number) => {
   const params = new URLSearchParams();

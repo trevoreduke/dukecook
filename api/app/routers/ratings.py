@@ -107,6 +107,62 @@ async def create_rating(data: RatingCreate, db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.get("/pending")
+async def pending_ratings(
+    user_id: int = Query(..., description="User whose un-rated meals to list"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Past calendar meals the given user hasn't rated yet.
+
+    Returns one entry per recipe that appeared on the meal plan on a date
+    before today and has no rating from this user. Ratings are per-recipe
+    per-user, so once the user rates a recipe it drops off this list even if
+    it was scheduled multiple times. Sorted most-recently-planned first.
+    """
+    logger.info(f"Getting pending (un-rated) meals for user {user_id}")
+
+    today = date.today()
+
+    # Recipes this user has already rated — excluded from the list.
+    rated_result = await db.execute(
+        select(Rating.recipe_id).where(Rating.user_id == user_id).distinct()
+    )
+    rated_recipe_ids = {r for r in rated_result.scalars().all()}
+
+    # Past meal-plan entries, grouped to one row per recipe (most recent past
+    # date wins; flag whether any occurrence was marked cooked).
+    plan_result = await db.execute(
+        select(
+            MealPlan.recipe_id,
+            func.max(MealPlan.date).label("last_date"),
+            func.max(case((MealPlan.status == "cooked", 1), else_=0)).label("ever_cooked"),
+        )
+        .where(and_(MealPlan.date < today, MealPlan.recipe_id.isnot(None)))
+        .group_by(MealPlan.recipe_id)
+        .order_by(func.max(MealPlan.date).desc())
+    )
+
+    pending = []
+    for recipe_id, last_date, ever_cooked in plan_result.all():
+        if recipe_id in rated_recipe_ids:
+            continue
+        recipe_row = await db.execute(select(Recipe).where(Recipe.id == recipe_id))
+        recipe = recipe_row.scalar_one_or_none()
+        if not recipe or recipe.archived:
+            continue
+        pending.append({
+            "recipe_id": recipe_id,
+            "recipe_title": recipe.title,
+            "recipe_image": recipe.image_url or "",
+            "last_planned": str(last_date),
+            "cooked": bool(ever_cooked),
+            "total_time_min": recipe.total_time_min,
+        })
+
+    logger.info(f"Found {len(pending)} un-rated past meals for user {user_id}")
+    return {"pending": pending}
+
+
 @router.get("/recipe/{recipe_id}", response_model=list[RatingOut])
 async def get_recipe_ratings(recipe_id: int, db: AsyncSession = Depends(get_db)):
     """Get all ratings for a recipe (from both users)."""
