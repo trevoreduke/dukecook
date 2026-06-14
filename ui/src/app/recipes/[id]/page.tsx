@@ -289,6 +289,47 @@ export default function RecipeDetailPage() {
         </div>
       )}
 
+      {/* Rating Form */}
+      {showRating && (
+        <div className="card p-5">
+          <h3 className="font-semibold mb-3">Rate this recipe ({currentUser?.name})</h3>
+
+          <div className="star-rating flex gap-1 text-3xl mb-4">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button
+                key={s}
+                onClick={() => setRatingStars(s)}
+                className={`star ${s <= ratingStars ? 'active text-brand-500' : 'text-gray-300'}`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+
+          <label className="flex items-center gap-2 mb-3">
+            <input
+              type="checkbox"
+              checked={wouldMakeAgain}
+              onChange={(e) => setWouldMakeAgain(e.target.checked)}
+              className="rounded"
+            />
+            <span>Would make again</span>
+          </label>
+
+          <textarea
+            className="input mb-3"
+            placeholder="Notes (optional) — e.g., 'Added extra garlic, Emily loved it'"
+            value={ratingNotes}
+            onChange={(e) => setRatingNotes(e.target.value)}
+            rows={2}
+          />
+
+          <button onClick={handleRate} disabled={submitting} className="btn-primary w-full">
+            {submitting ? 'Saving...' : 'Submit Rating'}
+          </button>
+        </div>
+      )}
+
       {/* Plan success banner */}
       {planSuccess && (
         <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-green-800 text-sm flex items-center gap-2">
@@ -649,47 +690,6 @@ export default function RecipeDetailPage() {
           ) : (
             <p className="text-sm text-amber-700">No original text stored for this recipe.</p>
           )}
-        </div>
-      )}
-
-      {/* Rating Form */}
-      {showRating && (
-        <div className="card p-5">
-          <h3 className="font-semibold mb-3">Rate this recipe ({currentUser?.name})</h3>
-
-          <div className="star-rating flex gap-1 text-3xl mb-4">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <button
-                key={s}
-                onClick={() => setRatingStars(s)}
-                className={`star ${s <= ratingStars ? 'active text-brand-500' : 'text-gray-300'}`}
-              >
-                ★
-              </button>
-            ))}
-          </div>
-
-          <label className="flex items-center gap-2 mb-3">
-            <input
-              type="checkbox"
-              checked={wouldMakeAgain}
-              onChange={(e) => setWouldMakeAgain(e.target.checked)}
-              className="rounded"
-            />
-            <span>Would make again</span>
-          </label>
-
-          <textarea
-            className="input mb-3"
-            placeholder="Notes (optional) — e.g., 'Added extra garlic, Emily loved it'"
-            value={ratingNotes}
-            onChange={(e) => setRatingNotes(e.target.value)}
-            rows={2}
-          />
-
-          <button onClick={handleRate} disabled={submitting} className="btn-primary w-full">
-            {submitting ? 'Saving...' : 'Submit Rating'}
-          </button>
         </div>
       )}
 
