@@ -4,6 +4,13 @@ from datetime import datetime, date
 from typing import Optional
 from pydantic import BaseModel, Field
 
+# Alias so models that have a field literally named ``date`` can still annotate it
+# as a date type. Writing ``date: Optional[date] = None`` shadows the ``date``
+# type with the field name (the default binds ``date`` in the class namespace),
+# collapsing the annotation to ``NoneType`` — which silently makes the field
+# reject any real date. Referencing the un-shadowed alias avoids that.
+_Date = date
+
 
 # ---------- Users ----------
 
@@ -167,7 +174,7 @@ class MealPlanCreate(BaseModel):
     notes: str = ""
 
 class MealPlanUpdate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[_Date] = None
     meal_type: Optional[str] = None
     recipe_id: Optional[int] = None
     status: Optional[str] = None

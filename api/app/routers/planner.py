@@ -16,6 +16,7 @@ from app.schemas import (
 from app.services.rules_engine import evaluate_rules, get_rule_status_for_week
 from app.services.suggestion_engine import suggest_meals
 from app.services.ha_calendar import fetch_ha_events
+from app.services import meal_calendar
 
 logger = logging.getLogger("dukecook.routers.planner")
 router = APIRouter(prefix="/api/planner", tags=["planner"])
@@ -258,6 +259,12 @@ async def create_plan_entry(data: MealPlanCreate, db: AsyncSession = Depends(get
         extra={"extra_data": {"plan_id": plan.id, "recipe_id": data.recipe_id, "date": str(data.date)}}
     )
 
+    # Push a matching event onto the family calendar (best-effort, non-blocking).
+    meal_calendar.schedule(meal_calendar.sync_meal_event(
+        plan_id=plan.id, meal_date=plan.date,
+        meal_type=plan.meal_type, recipe_title=recipe.title,
+    ))
+
     return MealPlanOut(
         id=plan.id,
         date=plan.date,
@@ -278,6 +285,8 @@ async def update_plan_entry(plan_id: int, data: MealPlanUpdate, db: AsyncSession
     if not plan:
         raise HTTPException(status_code=404, detail="Plan entry not found")
 
+    old_date = plan.date  # capture before mutation so a moved event can be cleaned up
+
     for field in ["date", "meal_type", "recipe_id", "status", "notes"]:
         value = getattr(data, field, None)
         if value is not None:
@@ -285,7 +294,27 @@ async def update_plan_entry(plan_id: int, data: MealPlanUpdate, db: AsyncSession
 
     await db.flush()
     logger.info(f"Plan entry updated: {plan_id}")
-    return MealPlanOut.model_validate(plan)
+
+    # Reconcile the family-calendar event (best-effort, non-blocking).
+    recipe_result = await db.execute(select(Recipe).where(Recipe.id == plan.recipe_id))
+    recipe = recipe_result.scalar_one_or_none()
+    meal_calendar.schedule(meal_calendar.resync_after_update(
+        plan_id=plan.id, old_date=old_date, new_date=plan.date,
+        meal_type=plan.meal_type, recipe_title=recipe.title if recipe else "Dinner",
+        status=plan.status,
+    ))
+
+    # Build the response explicitly (like create_plan_entry) — validating straight
+    # from the ORM object would lazy-load plan.recipe.tags outside the async
+    # greenlet and raise MissingGreenlet.
+    return MealPlanOut(
+        id=plan.id,
+        date=plan.date,
+        meal_type=plan.meal_type,
+        recipe_id=plan.recipe_id,
+        status=plan.status,
+        notes=plan.notes,
+    )
 
 
 @router.delete("/{plan_id}", status_code=204)
@@ -296,9 +325,13 @@ async def delete_plan_entry(plan_id: int, db: AsyncSession = Depends(get_db)):
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan entry not found")
+    meal_date = plan.date  # capture before delete for calendar cleanup
     await db.delete(plan)
     await db.flush()
     logger.info(f"Plan entry deleted: {plan_id}")
+
+    # Remove the matching family-calendar event (best-effort, non-blocking).
+    meal_calendar.schedule(meal_calendar.remove_meal_event(plan_id=plan_id, meal_date=meal_date))
 
 
 @router.post("/suggest")

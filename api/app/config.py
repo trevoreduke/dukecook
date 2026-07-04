@@ -15,7 +15,16 @@ class Settings(BaseSettings):
     # Home Assistant Calendar Integration
     ha_url: str = ""  # e.g. https://6g4hp0yxylk47d9p85gxoala2lvs1w8l.ui.nabu.casa
     ha_token: str = ""  # Long-lived access token
-    ha_calendars: str = "calendar.trevor_duke_gmail_com,calendar.runsweetlew_gmail_com,calendar.the_house_calendar"  # Comma-separated entity IDs
+    ha_calendars: str = "calendar.28582_house_calendar,calendar.trevor_28582famcal"  # Comma-separated entity IDs read for busy-night detection
+
+    # Meal -> family calendar sync (write path).
+    # When a dinner is planned, DukeCook creates a matching event on this HA calendar
+    # (Google-backed "28582 house calendar" -> syncs to everyone's phones).
+    ha_write_calendar: str = "calendar.28582_house_calendar"
+    meal_calendar_sync: bool = True                 # master on/off switch
+    meal_calendar_meal_types: str = "dinner"        # comma-separated meal_types that get an event
+    meal_event_start: str = "17:30"                 # local HH:MM for the dinner block start
+    meal_event_end: str = "18:30"                   # local HH:MM for the dinner block end
 
     # Logging
     log_level: str = "INFO"
